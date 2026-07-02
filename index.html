@@ -2,8 +2,23 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Local Trading Journal (Multi-Account)</title>
+
+    <!-- Browser tab icon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+    <!-- iOS "Add to Home Screen" icon + app-like behavior -->
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Journal">
+
+    <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b0f19">
+
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,6 +27,12 @@
     <style>
         body { background-color: #0b0f19; color: #f3f4f6; font-family: sans-serif; }
         [v-cloak] { display: none !important; }
+
+        /* Hide scrollbars everywhere (still scrollable, just no visible track/thumb).
+           Makes the packaged Electron build look like a native desktop app instead
+           of a webpage. Safe to keep for the browser/mobile version too. */
+        html { scrollbar-width: none; -ms-overflow-style: none; }
+        ::-webkit-scrollbar { width: 0; height: 0; display: none; }
         .bg-dark-panel { background-color: #111827; }
         .bg-dark-input { background-color: #1f2937; }
         
@@ -41,11 +62,23 @@
 <body>
     <div id="app" v-cloak class="p-4 w-full mx-auto space-y-6" style="max-width: 1600px;">
 
-        <div v-if="authLoading" class="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        <!-- Read-only shared view loading/error states (?share=TOKEN in the URL) -->
+        <div v-if="isShareView && sharedLoading" class="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+            正在加载分享内容...
+        </div>
+
+        <div v-else-if="isShareView && (sharedError || !sharedAccount)" class="flex items-center justify-center min-h-[60vh]">
+            <div class="text-center text-sm text-gray-400 max-w-xs">
+                <p class="text-base text-white font-medium mb-1">链接无效或已被取消分享</p>
+                <p>{{ sharedError || '请向对方确认最新的分享链接。' }}</p>
+            </div>
+        </div>
+
+        <div v-else-if="!isShareView && authLoading" class="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
             正在连接...
         </div>
 
-        <div v-else-if="!authUser" class="flex items-center justify-center min-h-[70vh]">
+        <div v-else-if="!isShareView && !authUser" class="flex items-center justify-center min-h-[70vh]">
             <div class="w-full max-w-sm bg-dark-panel border border-gray-800 rounded-xl p-6 shadow-xl space-y-4">
                 <div class="text-center">
                     <h1 class="text-xl font-bold text-white tracking-wide">TRADING JOURNAL</h1>
@@ -85,20 +118,30 @@
             </div>
         </div>
 
+        <!-- Unified dashboard: same markup for the logged-in owner AND the read-only
+             shared visitor. `readOnly` (true only in the shared view) toggles the few
+             bits that differ: account/export/share/logout controls and the add-record
+             form are hidden, and the history table drops its checkboxes/delete column. -->
         <template v-else>
         
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-4 gap-4 px-2">
             <div>
-                <h1 class="text-2xl font-bold text-white tracking-wide">TRADING JOURNAL</h1>
+                <h1 class="text-2xl font-bold text-white tracking-wide">{{ readOnly ? currentAccountName : 'TRADING JOURNAL' }}</h1>
                 <p class="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" :class="connectionState === 'connected' ? 'bg-green-400' : (connectionState === 'errored' ? 'bg-red-500' : 'bg-yellow-400 animate-pulse')"></span>
-                    <span v-if="connectionState === 'connected'">云端实时同步 • {{ authUser.email }}</span>
-                    <span v-else-if="connectionState === 'errored'">连接失败 • 请检查 APP_ID 或网络</span>
-                    <span v-else>正在连接同步服务...</span>
+                    <template v-if="readOnly">
+                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                        🔒 只读分享视图 · 数据实时同步 · 无法编辑
+                    </template>
+                    <template v-else>
+                        <span class="w-1.5 h-1.5 rounded-full" :class="connectionState === 'connected' ? 'bg-green-400' : (connectionState === 'errored' ? 'bg-red-500' : 'bg-yellow-400 animate-pulse')"></span>
+                        <span v-if="connectionState === 'connected'">云端实时同步 • {{ authUser.email }}</span>
+                        <span v-else-if="connectionState === 'errored'">连接失败 • 请检查 APP_ID 或网络</span>
+                        <span v-else>正在连接同步服务...</span>
+                    </template>
                 </p>
             </div>
             
-            <div class="flex flex-wrap items-center gap-3 bg-gray-900 bg-opacity-60 p-2 rounded-xl border border-gray-800">
+            <div v-if="!readOnly" class="flex flex-wrap items-center gap-3 bg-gray-900 bg-opacity-60 p-2 rounded-xl border border-gray-800">
                 <div class="flex items-center gap-1.5">
                     <span class="text-xs text-gray-400 font-medium">当前账户:</span>
                     <select v-model="currentAccountId" @change="onAccountSwitch" 
@@ -129,6 +172,27 @@
 
                 <div class="w-px h-4 bg-gray-700"></div>
 
+                <div class="relative group">
+                    <button @click="shareLinkVisible = !shareLinkVisible" class="px-2.5 py-1 bg-indigo-900 bg-opacity-40 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
+                        🔗 只读分享{{ currentAccount && currentAccount.shareToken ? '（已开启）' : '' }}
+                    </button>
+                    <div v-if="shareLinkVisible" class="absolute z-50 top-full right-0 mt-2 w-72 bg-black text-gray-200 text-xs p-3 rounded-lg shadow-2xl border border-gray-800 space-y-2">
+                        <p class="text-gray-400 leading-relaxed">生成一个只读链接，任何持有链接的人都可以查看当前账户「{{ currentAccountName }}」，但无法修改或删除数据。</p>
+                        <div v-if="currentAccount && currentAccount.shareToken" class="space-y-2">
+                            <input readonly :value="shareUrl" class="w-full bg-dark-input border border-gray-700 rounded px-2 py-1.5 text-[11px] text-gray-300" @click="$event.target.select()">
+                            <div class="flex gap-1.5">
+                                <button @click="copyShareLink" class="flex-1 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition cursor-pointer">复制链接</button>
+                                <button @click="revokeShare" :disabled="shareBusy" class="flex-1 px-2 py-1.5 bg-red-950 hover:bg-red-900 text-red-400 border border-red-900/40 rounded transition cursor-pointer disabled:opacity-50">取消分享</button>
+                            </div>
+                        </div>
+                        <button v-else @click="shareCurrentAccount" :disabled="shareBusy" class="w-full px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded transition cursor-pointer">
+                            {{ shareBusy ? '生成中...' : '生成只读链接' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="w-px h-4 bg-gray-700"></div>
+
                 <button @click="logout" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-400 hover:text-gray-200 transition cursor-pointer">
                     退出登录
                 </button>
@@ -138,7 +202,7 @@
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
             
             <div class="space-y-6 xl:col-span-1">
-                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
+                <div v-if="!readOnly" class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
                     <div class="flex bg-gray-800 p-1 rounded-lg mb-4">
                         <button type="button" @click="form.type = 'trade'" 
                                 class="flex-1 text-xs py-1.5 rounded font-medium transition cursor-pointer"
@@ -303,43 +367,45 @@
                         </div>
                     </div>
                     
-                    <div v-if="viewMode === 'month'">
-                        <div class="grid grid-cols-8 gap-1.5 text-center text-xs text-gray-500 font-medium mb-1.5">
-                            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                            <div class="text-indigo-400 font-semibold border-l border-gray-800/80">Weekly</div>
-                        </div>
-                        <div class="space-y-1.5">
-                            <div v-for="(week, wIdx) in calendarWeeks" :key="'week-'+wIdx" class="grid grid-cols-8 gap-1.5">
-                                <div v-for="(day, dIdx) in week.days" :key="wIdx+'-'+dIdx" @click="openDayDetail(day)" class="min-h-[125px] rounded p-2.5 flex flex-col justify-between transition-colors border" :class="day.isPlaceholder ? 'bg-transparent border-transparent text-transparent opacity-0 select-none' : getCalendarDayBg(day) + ' cursor-pointer hover:brightness-125'">
-                                    <template v-if="!day.isPlaceholder">
-                                        <div class="flex justify-between items-start w-full">
-                                            <span class="text-[11px] text-gray-500 font-bold font-mono">{{ day.dayNum }}</span>
-                                            <div class="flex items-center gap-1">
-                                                <span v-if="day.tradeCount > 0" class="text-[9px] text-gray-400 font-mono">{{ day.tradeCount }}笔</span>
-                                                <span v-if="day.deposit > 0" class="text-[9px] bg-green-500 text-black px-1 rounded font-extrabold tracking-tighter transform scale-90">DEP</span>
-                                                <span v-if="day.hasTradeData" class="w-2 h-2 rounded-full" :class="day.pnl > 0 ? 'bg-green-400' : (day.pnl < 0 ? 'bg-red-400' : 'bg-gray-400')"></span>
+                    <div v-if="viewMode === 'month'" class="overflow-x-auto -mx-5 px-5 pb-1">
+                        <div class="min-w-[720px]">
+                            <div class="grid grid-cols-8 gap-1.5 text-center text-xs text-gray-500 font-medium mb-1.5">
+                                <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                                <div class="text-indigo-400 font-semibold border-l border-gray-800/80">Weekly</div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <div v-for="(week, wIdx) in calendarWeeks" :key="'week-'+wIdx" class="grid grid-cols-8 gap-1.5">
+                                    <div v-for="(day, dIdx) in week.days" :key="wIdx+'-'+dIdx" @click="openDayDetail(day)" class="min-h-[125px] rounded p-2.5 flex flex-col justify-between transition-colors border" :class="day.isPlaceholder ? 'bg-transparent border-transparent text-transparent opacity-0 select-none' : getCalendarDayBg(day) + ' cursor-pointer hover:brightness-125'">
+                                        <template v-if="!day.isPlaceholder">
+                                            <div class="flex justify-between items-start w-full">
+                                                <span class="text-[11px] text-gray-500 font-bold font-mono">{{ day.dayNum }}</span>
+                                                <div class="flex items-center gap-1">
+                                                    <span v-if="day.tradeCount > 0" class="text-[9px] text-gray-400 font-mono">{{ day.tradeCount }}笔</span>
+                                                    <span v-if="day.deposit > 0" class="text-[9px] bg-green-500 text-black px-1 rounded font-extrabold tracking-tighter transform scale-90">DEP</span>
+                                                    <span v-if="day.hasTradeData" class="w-2 h-2 rounded-full" :class="day.pnl > 0 ? 'bg-green-400' : (day.pnl < 0 ? 'bg-red-400' : 'bg-gray-400')"></span>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div class="my-auto space-y-1 text-center py-1">
-                                            <span v-if="day.hasTradeData" class="text-xs font-black block leading-none tracking-wide" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-300')">
-                                                {{ day.pnl > 0 ? '+' : '' }}{{ Math.round(day.pnl) }}
-                                            </span>
-                                            <span v-if="day.deposit > 0" class="text-[11px] font-bold block leading-none text-green-400/90 font-mono">
-                                                +${{ Math.round(day.deposit) }}
-                                            </span>
-                                        </div>
+                                            <div class="my-auto space-y-1 text-center py-1">
+                                                <span v-if="day.hasTradeData" class="text-xs font-black block leading-none tracking-wide" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-300')">
+                                                    {{ day.pnl > 0 ? '+' : '' }}{{ Math.round(day.pnl) }}
+                                                </span>
+                                                <span v-if="day.deposit > 0" class="text-[11px] font-bold block leading-none text-green-400/90 font-mono">
+                                                    +${{ Math.round(day.deposit) }}
+                                                </span>
+                                            </div>
 
-                                        <div class="h-4.5 flex items-center justify-center overflow-hidden w-full">
-                                            <span v-if="day.tickers.length > 0" class="text-[9px] text-gray-300 text-center truncate font-mono tracking-tighter bg-black bg-opacity-50 rounded px-1 w-full block py-0.5 border border-gray-800/60" :title="day.tickers.join(', ')">{{ day.tickers.join(',') }}</span>
-                                        </div>
-                                    </template>
-                                </div>
-                                <div class="min-h-[125px] rounded p-2.5 flex flex-col justify-center border border-dashed border-gray-800 bg-gray-900 bg-opacity-20 text-left pl-3 border-l-2 border-l-indigo-900/60">
-                                    <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Week {{ wIdx + 1 }}</span>
-                                    <span class="text-xs font-bold mt-1.5 leading-none" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-400')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
-                                    <span class="text-[10px] text-gray-400 mt-2 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeDays }}</strong> 天交易</span>
-                                    <span class="text-[10px] text-gray-400 mt-0.5 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeCount }}</strong> 笔交易</span>
+                                            <div class="h-4.5 flex items-center justify-center overflow-hidden w-full">
+                                                <span v-if="day.tickers.length > 0" class="text-[9px] text-gray-300 text-center truncate font-mono tracking-tighter bg-black bg-opacity-50 rounded px-1 w-full block py-0.5 border border-gray-800/60" :title="day.tickers.join(', ')">{{ day.tickers.join(',') }}</span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <div class="min-h-[125px] rounded p-2.5 flex flex-col justify-center border border-dashed border-gray-800 bg-gray-900 bg-opacity-20 text-left pl-3 border-l-2 border-l-indigo-900/60">
+                                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Week {{ wIdx + 1 }}</span>
+                                        <span class="text-xs font-bold mt-1.5 leading-none" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-400')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
+                                        <span class="text-[10px] text-gray-400 mt-2 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeDays }}</strong> 天交易</span>
+                                        <span class="text-[10px] text-gray-400 mt-0.5 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeCount }}</strong> 笔交易</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -397,7 +463,7 @@
                         <div class="flex items-center gap-2">
                             <input type="text" v-model="searchQuery" :placeholder="tableTab === 'trade' ? '🔍 输入代码筛选...' : '🔍 输入备注筛选...'" 
                                    class="bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 w-44">
-                            <button v-if="selectedIds.length > 0" @click="deleteSelected" class="px-2 py-1 bg-red-900 bg-opacity-60 hover:bg-red-900 text-[10px] text-red-300 rounded border border-red-700 transition cursor-pointer whitespace-nowrap">
+                            <button v-if="!readOnly && selectedIds.length > 0" @click="deleteSelected" class="px-2 py-1 bg-red-900 bg-opacity-60 hover:bg-red-900 text-[10px] text-red-300 rounded border border-red-700 transition cursor-pointer whitespace-nowrap">
                                 批量删除 ({{ selectedIds.length }})
                             </button>
                         </div>
@@ -407,24 +473,24 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="text-gray-500 border-b border-gray-800 select-none">
-                                    <th class="pb-2 w-10"><input type="checkbox" :checked="isCurrentPageAllSelected" @change="toggleSelectAllPage" class="cursor-pointer"></th>
+                                    <th v-if="!readOnly" class="pb-2 w-10"><input type="checkbox" :checked="isCurrentPageAllSelected" @change="toggleSelectAllPage" class="cursor-pointer"></th>
                                     <th @click="toggleSort('seq')" class="pb-2 cursor-pointer hover:text-gray-300 transition">ID {{ renderSortIcon('seq') }}</th>
                                     <th @click="toggleSort('date')" class="pb-2 cursor-pointer hover:text-gray-300 transition">日期 {{ renderSortIcon('date') }}</th>
                                     <th @click="toggleSort('ticker')" class="pb-2 cursor-pointer hover:text-gray-300 transition">{{ tableTab === 'trade' ? '股票代码 (Ticker)' : '渠道 / 备注' }} {{ renderSortIcon('ticker') }}</th>
                                     <th @click="toggleSort('amount')" class="pb-2 cursor-pointer hover:text-gray-300 transition">数额 {{ renderSortIcon('amount') }}</th>
-                                    <th class="pb-2 text-right">操作</th>
+                                    <th v-if="!readOnly" class="pb-2 text-right">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="item in paginatedRecords" :key="item.id" class="border-b border-gray-800 border-opacity-40 hover:bg-gray-800 hover:bg-opacity-20">
-                                    <td class="py-2"><input type="checkbox" :value="item.id" v-model="selectedIds" class="cursor-pointer"></td>
+                                    <td v-if="!readOnly" class="py-2"><input type="checkbox" :value="item.id" v-model="selectedIds" class="cursor-pointer"></td>
                                     <td class="py-2 text-gray-500">#{{ item.seq }}</td>
                                     <td class="py-2 text-gray-300">{{ item.date }}</td>
                                     <td class="py-2 font-mono text-gray-400 uppercase">{{ item.ticker || '-' }}</td>
                                     <td class="py-2 font-medium" :class="item.type === 'deposit' ? 'text-green-400' : (item.amount > 0 ? 'text-green-400' : (item.amount < 0 ? 'text-red-400' : 'text-gray-400'))">
                                         {{ item.type === 'deposit' ? '+$' + item.amount.toFixed(2) : formatCurrency(item.amount) }}
                                     </td>
-                                    <td class="py-2 text-right">
+                                    <td v-if="!readOnly" class="py-2 text-right">
                                         <button @click="deleteSingle(item.id)" class="text-gray-500 hover:text-red-400 cursor-pointer">删除</button>
                                     </td>
                                 </tr>
@@ -569,6 +635,37 @@
                     }
                 });
 
+                // --- Read-only sharing ("?share=TOKEN" in the URL) ---
+                // Anyone with this link can view the account, but NOT edit it. See the
+                // permission rules note near the bottom of this file / in the chat for
+                // the InstantDB dashboard config this depends on.
+                const urlShareToken = new URLSearchParams(window.location.search).get('share');
+                const isShareView = ref(!!urlShareToken);
+                const sharedLoading = ref(true);
+                const sharedError = ref(null);
+                const sharedAccount = ref(null);
+                const sharedRecords = ref([]);
+
+                if (urlShareToken) {
+                    db.subscribeQuery(
+                        {
+                            accounts: { $: { where: { shareToken: urlShareToken } } },
+                            records: { $: { where: { shareToken: urlShareToken } } },
+                        },
+                        (resp) => {
+                            sharedLoading.value = false;
+                            if (resp.error) { sharedError.value = resp.error.message; return; }
+                            sharedAccount.value = (resp.data.accounts && resp.data.accounts[0]) || null;
+                            sharedRecords.value = (resp.data.records || []).slice().sort((a, b) => {
+                                if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+                                return (b.createdAt || 0) - (a.createdAt || 0);
+                            });
+                        },
+                        { ruleParams: { shareToken: urlShareToken } }
+                    );
+                }
+
+
                 const sendCode = async () => {
                     if (!loginEmail.value) return;
                     loginSending.value = true; loginError.value = null;
@@ -601,7 +698,78 @@
                 // belonging to the currently selected account. Everything below this
                 // point (stats, calendar, charts) reads from `records.value` exactly
                 // like the original localStorage version did.
-                const records = computed(() => allRecords.value.filter(r => r.accountId === currentAccountId.value));
+                // Unified data source: in the normal app this is the current account's
+                // records; in the read-only shared view (?share=TOKEN) it's the publicly
+                // queried records for the shared account. Every stat/calendar/chart below
+                // reads from this one computed, so the shared view automatically renders
+                // an identical dashboard without duplicating any of that logic.
+                const records = computed(() => {
+                    if (isShareView.value) return sharedRecords.value;
+                    return allRecords.value.filter(r => r.accountId === currentAccountId.value);
+                });
+
+                const readOnly = computed(() => isShareView.value);
+
+                const currentAccount = computed(() => {
+                    if (isShareView.value) return sharedAccount.value;
+                    return accounts.value.find(a => a.id === currentAccountId.value) || null;
+                });
+                const shareUrl = computed(() => {
+                    if (!currentAccount.value || !currentAccount.value.shareToken) return '';
+                    return `${window.location.origin}${window.location.pathname}?share=${currentAccount.value.shareToken}`;
+                });
+
+                const shareBusy = ref(false);
+                const shareLinkVisible = ref(false);
+
+                const generateShareToken = () => 'sh_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+                // Turns on (or refreshes) the read-only link for the current account.
+                // The token is stamped onto the account AND onto every one of its records,
+                // because the InstantDB permission rules check `data.shareToken` directly
+                // on each record (no schema links required — see the rules snippet).
+                const shareCurrentAccount = async () => {
+                    const acc = currentAccount.value;
+                    if (!acc) return;
+                    shareBusy.value = true;
+                    try {
+                        const token = acc.shareToken || generateShareToken();
+                        const txs = [db.tx.accounts[acc.id].update({ shareToken: token })];
+                        allRecords.value.filter(r => r.accountId === acc.id).forEach(r => {
+                            txs.push(db.tx.records[r.id].update({ shareToken: token }));
+                        });
+                        await db.transact(txs);
+                        shareLinkVisible.value = true;
+                    } finally {
+                        shareBusy.value = false;
+                    }
+                };
+
+                const revokeShare = async () => {
+                    const acc = currentAccount.value;
+                    if (!acc || !acc.shareToken) return;
+                    if (!confirm('确定要取消分享吗？之前发出的只读链接将立即失效。')) return;
+                    shareBusy.value = true;
+                    try {
+                        const txs = [db.tx.accounts[acc.id].update({ shareToken: null })];
+                        allRecords.value.filter(r => r.accountId === acc.id).forEach(r => {
+                            txs.push(db.tx.records[r.id].update({ shareToken: null }));
+                        });
+                        await db.transact(txs);
+                    } finally {
+                        shareBusy.value = false;
+                    }
+                };
+
+                const copyShareLink = async () => {
+                    if (!shareUrl.value) return;
+                    try {
+                        await navigator.clipboard.writeText(shareUrl.value);
+                        alert('只读链接已复制！对方打开后可查看，但无法修改。');
+                    } catch (e) {
+                        prompt('复制失败，请手动复制以下链接：', shareUrl.value);
+                    }
+                };
 
                 // Format a Date using its LOCAL calendar date (not UTC). Using
                 // .toISOString() here would shift the date near midnight for any
@@ -750,6 +918,7 @@
                             accountId: currentAccountId.value,
                             ownerId: authUser.value.id,
                             createdAt: Date.now(),
+                            shareToken: (currentAccount.value && currentAccount.value.shareToken) || null,
                         })
                     );
                     form.value.amount = null;
@@ -1035,10 +1204,7 @@
                     depositBarChart.update();
                 };
 
-                const currentAccountName = computed(() => {
-                    const acc = accounts.value.find(a => a.id === currentAccountId.value);
-                    return acc ? acc.name : '';
-                });
+                const currentAccountName = computed(() => (currentAccount.value ? currentAccount.value.name : ''));
 
                 const exportData = () => {
                     // 备份仅包含当前账户名和其流水记录（不含内部数据库 id，方便跨库导入）
@@ -1116,7 +1282,10 @@
                 watch(authUser, (newVal) => {
                     if (newVal) nextTick(() => initCharts());
                 });
-                onMounted(() => { if (authUser.value) nextTick(() => initCharts()); });
+                watch(sharedAccount, (newVal) => {
+                    if (newVal) nextTick(() => initCharts());
+                });
+                onMounted(() => { if (authUser.value || sharedAccount.value) nextTick(() => initCharts()); });
 
                 return {
                     accounts, currentAccountId, currentAccountName, promptCreateAccount, onAccountSwitch, deleteCurrentAccount,
@@ -1127,7 +1296,9 @@
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, exportData, importData,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
-                    toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl
+                    toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl,
+                    currentAccount, shareUrl, shareBusy, shareLinkVisible, shareCurrentAccount, revokeShare, copyShareLink,
+                    isShareView, readOnly, sharedLoading, sharedError, sharedAccount, sharedRecords,
                 };
             }
         }).mount('#app');
