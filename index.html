@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Trading Journal (Multi-Account)</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- InstantDB: real-time sync backend, loaded via CDN (no build step needed) -->
+    <script src="https://www.unpkg.com/@instantdb/core@latest/dist/standalone/index.umd.cjs"></script>
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: sans-serif; }
+        [v-cloak] { display: none !important; }
+        .bg-dark-panel { background-color: #111827; }
+        .bg-dark-input { background-color: #1f2937; }
+        
+        .group:hover .group-hover\:flex {
+            display: flex !important;
+        }
+
+        input[type="date"], input[type="month"] {
+            color-scheme: dark; 
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="month"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(0.6) sepia(1) saturate(5) hue-rotate(200deg);
+        }
+        
+        .mini-grid-cell {
+            aspect-ratio: 1;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak class="p-4 w-full mx-auto space-y-6" style="max-width: 1600px;">
+
+        <div v-if="authLoading" class="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+            正在连接...
+        </div>
+
+        <div v-else-if="!authUser" class="flex items-center justify-center min-h-[70vh]">
+            <div class="w-full max-w-sm bg-dark-panel border border-gray-800 rounded-xl p-6 shadow-xl space-y-4">
+                <div class="text-center">
+                    <h1 class="text-xl font-bold text-white tracking-wide">TRADING JOURNAL</h1>
+                    <p class="text-xs text-gray-400 mt-1">登录后即可在电脑 / 手机间自动同步数据</p>
+                </div>
+
+                <form v-if="!loginSentEmail" @submit.prevent="sendCode" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">邮箱地址</label>
+                        <input type="email" v-model="loginEmail" required placeholder="you@example.com"
+                               class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <button type="submit" :disabled="loginSending"
+                            class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded transition cursor-pointer">
+                        {{ loginSending ? '发送中...' : '发送验证码' }}
+                    </button>
+                    <p v-if="loginError" class="text-xs text-red-400">{{ loginError }}</p>
+                </form>
+
+                <form v-else @submit.prevent="verifyCode" class="space-y-3">
+                    <p class="text-xs text-gray-400">验证码已发送至 <span class="text-white font-medium">{{ loginSentEmail }}</span></p>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">6 位验证码</label>
+                        <input type="text" v-model="loginCode" required inputmode="numeric" placeholder="123456"
+                               class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 tracking-widest focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <button type="submit" :disabled="loginSending"
+                            class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded transition cursor-pointer">
+                        {{ loginSending ? '验证中...' : '登录' }}
+                    </button>
+                    <button type="button" @click="loginSentEmail=''; loginCode=''; loginError=null;"
+                            class="w-full text-xs text-gray-500 hover:text-gray-300 cursor-pointer">
+                        重新输入邮箱
+                    </button>
+                    <p v-if="loginError" class="text-xs text-red-400">{{ loginError }}</p>
+                </form>
+            </div>
+        </div>
+
+        <template v-else>
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-4 gap-4 px-2">
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-wide">TRADING JOURNAL</h1>
+                <p class="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="connectionState === 'connected' ? 'bg-green-400' : (connectionState === 'errored' ? 'bg-red-500' : 'bg-yellow-400 animate-pulse')"></span>
+                    <span v-if="connectionState === 'connected'">云端实时同步 • {{ authUser.email }}</span>
+                    <span v-else-if="connectionState === 'errored'">连接失败 • 请检查 APP_ID 或网络</span>
+                    <span v-else>正在连接同步服务...</span>
+                </p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3 bg-gray-900 bg-opacity-60 p-2 rounded-xl border border-gray-800">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xs text-gray-400 font-medium">当前账户:</span>
+                    <select v-model="currentAccountId" @change="onAccountSwitch" 
+                            class="bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-xs text-white font-bold tracking-wide focus:outline-none focus:border-indigo-500 cursor-pointer">
+                        <option v-for="acc in accounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
+                    </select>
+                </div>
+                
+                <div class="w-px h-4 bg-gray-700"></div>
+                
+                <div class="flex items-center gap-1.5">
+                    <button @click="promptCreateAccount" class="px-2.5 py-1 bg-indigo-900 bg-opacity-40 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
+                        ＋ 新建账户
+                    </button>
+                    <button @click="deleteCurrentAccount" class="px-2.5 py-1 bg-red-950 bg-opacity-40 hover:bg-red-900 text-red-400 border border-red-900/40 text-xs rounded transition cursor-pointer" title="删除当前账户及其所有数据">
+                        🗑️ 删除账户
+                    </button>
+                </div>
+
+                <div class="w-px h-4 bg-gray-700"></div>
+
+                <div class="flex gap-1.5">
+                    <button @click="exportData" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-300 transition cursor-pointer">导出备份</button>
+                    <label class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-300 transition cursor-pointer">
+                        导入备份 <input type="file" @change="importData" class="hidden">
+                    </label>
+                </div>
+
+                <div class="w-px h-4 bg-gray-700"></div>
+
+                <button @click="logout" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-400 hover:text-gray-200 transition cursor-pointer">
+                    退出登录
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            
+            <div class="space-y-6 xl:col-span-1">
+                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
+                    <div class="flex bg-gray-800 p-1 rounded-lg mb-4">
+                        <button type="button" @click="form.type = 'trade'" 
+                                class="flex-1 text-xs py-1.5 rounded font-medium transition cursor-pointer"
+                                :class="form.type === 'trade' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'">
+                            📈 交易盈亏
+                        </button>
+                        <button type="button" @click="form.type = 'deposit'" 
+                                class="flex-1 text-xs py-1.5 rounded font-medium transition cursor-pointer"
+                                :class="form.type === 'deposit' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'">
+                            💰 资金入金
+                        </button>
+                    </div>
+
+                    <h2 class="text-sm font-semibold text-gray-400 mb-4 tracking-wider uppercase">
+                        {{ form.type === 'trade' ? '记一笔交易' : '记录入金 (Deposit)' }}
+                    </h2>
+                    
+                    <form @submit.prevent="addRecord" class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">日期</label>
+                            <input type="date" v-model="form.date" required 
+                                   class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 tracking-wide">
+                            
+                            <div class="flex gap-1.5 mt-2">
+                                <button type="button" @click="setShortcutDate(0)" class="flex-1 bg-gray-800 hover:bg-gray-700 text-[11px] text-gray-300 py-1 rounded transition border border-gray-700/50 cursor-pointer">今天</button>
+                                <button type="button" @click="setShortcutDate(1)" class="flex-1 bg-gray-800 hover:bg-gray-700 text-[11px] text-gray-300 py-1 rounded transition border border-gray-700/50 cursor-pointer">昨天</button>
+                                <button type="button" @click="setLastFriday" class="flex-1 bg-gray-800 hover:bg-gray-700 text-[11px] text-gray-300 py-1 rounded transition border border-gray-700/50 cursor-pointer">上周五</button>
+                            </div>
+                        </div>
+
+                        <template v-if="form.type === 'trade'">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">股票代码 (Ticker)</label>
+                                <input type="text" v-model="form.ticker" placeholder="例如: AAPL, TSLA" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 uppercase focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">净盈亏 (Net P&L)</label>
+                                <input type="number" step="0.01" v-model.number="form.amount" required placeholder="正数盈利，负数亏损" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </template>
+
+                        <template v-else>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">入金渠道 / 备注</label>
+                                <input type="text" v-model="form.ticker" placeholder="例如: IBKR" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 uppercase focus:outline-none focus:border-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">入金金额 (Deposit Amount)</label>
+                                <input type="number" step="0.01" v-model.number="form.amount" required placeholder="请输入入金的资金数额" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500">
+                            </div>
+                        </template>
+
+                        <button type="submit" class="w-full text-white font-medium text-sm py-2 rounded transition cursor-pointer" :class="form.type === 'trade' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-green-600 hover:bg-green-500'">
+                            保存记录
+                        </button>
+                    </form>
+                </div>
+
+                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl grid grid-cols-2 gap-4">
+                    <div class="col-span-1 border-b border-gray-800 pb-2">
+                        <span class="text-xs text-gray-400 tracking-wider uppercase block">总净盈亏 (P&L)</span>
+                        <div class="text-xl font-bold mt-1" :class="stats.netPnL >= 0 ? 'text-green-400' : 'text-red-500'">
+                            {{ formatCurrency(stats.netPnL) }}
+                        </div>
+                    </div>
+
+                    <div class="col-span-1 border-b border-gray-800 pb-2 border-l border-gray-800 pl-3">
+                        <span class="text-xs text-gray-400 tracking-wider uppercase block">总入金 (Deposits)</span>
+                        <div class="text-xl font-bold mt-1 text-gray-100">
+                            ${{ stats.totalDeposits.toFixed(2) }}
+                        </div>
+                    </div>
+                    
+                    <div class="relative group border-t border-gray-800/40 pt-2 col-span-2">
+                        <div class="flex items-center gap-1 text-xs text-gray-400 cursor-help mb-1.5">
+                            <span>Trade Win %</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 text-center">
+                            <div><span class="block text-[9px] text-gray-500">全局</span><span class="text-xs font-semibold text-white">{{ stats.tradeWinPct }}%</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当天</span><span class="text-xs font-semibold text-indigo-400">{{ stats.dayWinPct }}%</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当周</span><span class="text-xs font-semibold text-indigo-400">{{ stats.weeklyWinPct }}%</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当月</span><span class="text-xs font-semibold text-indigo-400">{{ stats.monthlyWinPct }}%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="relative group border-t border-gray-800 pt-2 col-span-2">
+                        <div class="flex items-center gap-1 text-xs text-gray-400 cursor-help mb-1.5">
+                            <span>Profit Factor</span>
+                            <span class="text-indigo-400 font-bold">ⓘ</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 text-center">
+                            <div><span class="block text-[9px] text-gray-500">全局</span><span class="text-xs font-semibold text-white">{{ stats.profitFactor }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当天</span><span class="text-xs font-semibold text-indigo-400">{{ stats.dayProfitFactor }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当周</span><span class="text-xs font-semibold text-indigo-400">{{ stats.weeklyProfitFactor }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当月</span><span class="text-xs font-semibold text-indigo-400">{{ stats.monthlyProfitFactor }}</span></div>
+                        </div>
+                        <div class="hidden group-hover:flex absolute z-50 bottom-full left-0 mb-2 w-48 bg-black text-gray-200 text-[11px] p-2.5 rounded-lg shadow-2xl border border-gray-800 flex-col leading-relaxed">
+                            <strong>获利因子</strong>
+                            <span class="text-gray-400 mt-1">总赚取的资金除以总亏损的资金（不计算入金）。当天/当周/当月以交易表单里选择的日期为准。</span>
+                        </div>
+                    </div>
+
+                    <div class="relative group border-t border-gray-800 pt-2 col-span-2">
+                        <div class="flex items-center gap-1 text-xs text-gray-400 cursor-help mb-1.5">
+                            <span>Avg Win / Loss</span>
+                            <span class="text-indigo-400 font-bold">ⓘ</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 text-center">
+                            <div>
+                                <span class="block text-[9px] text-gray-500">全局</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight truncate">{{ formatCurrency(stats.avgWin) }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight truncate">{{ formatCurrency(stats.avgLoss) }}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当天</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight truncate">{{ formatCurrency(stats.dayAvgWin) }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight truncate">{{ formatCurrency(stats.dayAvgLoss) }}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当周</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight truncate">{{ formatCurrency(stats.weeklyAvgWin) }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight truncate">{{ formatCurrency(stats.weeklyAvgLoss) }}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当月</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight truncate">{{ formatCurrency(stats.monthlyAvgWin) }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight truncate">{{ formatCurrency(stats.monthlyAvgLoss) }}</span>
+                            </div>
+                        </div>
+                        <div class="hidden group-hover:flex absolute z-50 bottom-full right-0 mb-2 w-48 bg-black text-gray-200 text-[11px] p-2.5 rounded-lg shadow-2xl border border-gray-800 flex-col leading-relaxed">
+                            <strong>平均单笔盈/亏</strong>
+                            <span class="text-gray-400 mt-1">盈利单的平均获利数额 vs 亏损单的平均亏损值。</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="xl:col-span-3 space-y-6">
+                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-3 mb-4">
+                        <div class="flex items-center gap-2">
+                            <template v-if="viewMode === 'month'">
+                                <button @click="prevMonth" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">◀</button>
+                                <input type="month" v-model="selectedYearMonth" class="bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-xs text-white font-medium focus:outline-none cursor-pointer focus:border-indigo-500 text-center tracking-wide">
+                                <button @click="nextMonth" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">▶</button>
+                            </template>
+                            <template v-else>
+                                <button @click="currentYear--" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">◀</button>
+                                <span class="bg-gray-800 border border-gray-700 rounded px-4 py-1 text-xs text-white font-bold tracking-wider">{{ currentYear }} 年</span>
+                                <button @click="currentYear++" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">▶</button>
+                            </template>
+                            <button @click="toggleViewMode" class="ml-2 px-3 py-1 bg-indigo-900 bg-opacity-40 text-indigo-300 hover:bg-indigo-900 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
+                                {{ viewMode === 'month' ? '📅 切换年视图' : '🗓️ 返回月视图' }}
+                            </button>
+                        </div>
+                        <div v-if="viewMode === 'month'" class="text-xs text-gray-400 flex items-center gap-4 bg-gray-900 bg-opacity-40 px-3 py-1.5 rounded-lg border border-gray-800/60">
+                            <div>Monthly stats: <span class="font-bold ml-1" :class="monthlySummary.pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ monthlySummary.pnl >= 0 ? '+' : '' }}{{ monthlySummary.pnl.toFixed(2) }}</span></div>
+                            <div class="w-px h-3 bg-gray-800"></div>
+                            <div><span class="text-gray-200 font-medium">{{ monthlySummary.days }}</span> 天进行了交易</div>
+                            <div class="w-px h-3 bg-gray-800"></div>
+                            <div><span class="text-gray-200 font-medium">{{ monthlySummary.trades }}</span> 笔交易</div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="viewMode === 'month'">
+                        <div class="grid grid-cols-8 gap-1.5 text-center text-xs text-gray-500 font-medium mb-1.5">
+                            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                            <div class="text-indigo-400 font-semibold border-l border-gray-800/80">Weekly</div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div v-for="(week, wIdx) in calendarWeeks" :key="'week-'+wIdx" class="grid grid-cols-8 gap-1.5">
+                                <div v-for="(day, dIdx) in week.days" :key="wIdx+'-'+dIdx" @click="openDayDetail(day)" class="min-h-[125px] rounded p-2.5 flex flex-col justify-between transition-colors border" :class="day.isPlaceholder ? 'bg-transparent border-transparent text-transparent opacity-0 select-none' : getCalendarDayBg(day) + ' cursor-pointer hover:brightness-125'">
+                                    <template v-if="!day.isPlaceholder">
+                                        <div class="flex justify-between items-start w-full">
+                                            <span class="text-[11px] text-gray-500 font-bold font-mono">{{ day.dayNum }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <span v-if="day.tradeCount > 0" class="text-[9px] text-gray-400 font-mono">{{ day.tradeCount }}笔</span>
+                                                <span v-if="day.deposit > 0" class="text-[9px] bg-green-500 text-black px-1 rounded font-extrabold tracking-tighter transform scale-90">DEP</span>
+                                                <span v-if="day.hasTradeData" class="w-2 h-2 rounded-full" :class="day.pnl > 0 ? 'bg-green-400' : (day.pnl < 0 ? 'bg-red-400' : 'bg-gray-400')"></span>
+                                            </div>
+                                        </div>
+
+                                        <div class="my-auto space-y-1 text-center py-1">
+                                            <span v-if="day.hasTradeData" class="text-xs font-black block leading-none tracking-wide" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-300')">
+                                                {{ day.pnl > 0 ? '+' : '' }}{{ Math.round(day.pnl) }}
+                                            </span>
+                                            <span v-if="day.deposit > 0" class="text-[11px] font-bold block leading-none text-green-400/90 font-mono">
+                                                +${{ Math.round(day.deposit) }}
+                                            </span>
+                                        </div>
+
+                                        <div class="h-4.5 flex items-center justify-center overflow-hidden w-full">
+                                            <span v-if="day.tickers.length > 0" class="text-[9px] text-gray-300 text-center truncate font-mono tracking-tighter bg-black bg-opacity-50 rounded px-1 w-full block py-0.5 border border-gray-800/60" :title="day.tickers.join(', ')">{{ day.tickers.join(',') }}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="min-h-[125px] rounded p-2.5 flex flex-col justify-center border border-dashed border-gray-800 bg-gray-900 bg-opacity-20 text-left pl-3 border-l-2 border-l-indigo-900/60">
+                                    <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Week {{ wIdx + 1 }}</span>
+                                    <span class="text-xs font-bold mt-1.5 leading-none" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-400')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
+                                    <span class="text-[10px] text-gray-400 mt-2 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeDays }}</strong> 天交易</span>
+                                    <span class="text-[10px] text-gray-400 mt-0.5 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeCount }}</strong> 笔交易</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div v-for="mIdx in 12" :key="'month-card-'+mIdx" @click="drillDownToMonth(mIdx)" class="bg-gray-900 bg-opacity-40 border border-gray-800 hover:border-indigo-500/50 rounded-xl p-3 transition cursor-pointer group">
+                            <div class="flex justify-between items-center mb-2 border-b border-gray-800/60 pb-1">
+                                <span class="text-xs font-bold text-gray-300 group-hover:text-indigo-400 transition">{{ currentYear }}年 {{ mIdx }}月</span>
+                                <span class="text-[10px] font-mono" :class="getYearViewMonthStats(mIdx).pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ getYearViewMonthStats(mIdx).pnl >= 0 ? '+' : '' }}{{ Math.round(getYearViewMonthStats(mIdx).pnl) }}</span>
+                            </div>
+                            <div class="grid grid-cols-8 gap-0.5 text-center mb-1">
+                                <div v-for="h in ['日','一','二','三','四','五','六','W']" class="text-[8px] text-gray-600 scale-90">{{ h }}</div>
+                            </div>
+                            <div class="space-y-0.5">
+                                <div v-for="(week, wIdx) in getYearViewWeeks(mIdx)" :key="'yw-'+wIdx" class="grid grid-cols-8 gap-0.5">
+                                    <div v-for="(day, dIdx) in week.days" class="mini-grid-cell border" :class="day.isPlaceholder ? 'border-transparent' : getCalendarDayBg(day)">
+                                        <span v-if="!day.isPlaceholder" class="opacity-40 scale-75">{{ day.dayNum }}</span>
+                                    </div>
+                                    <div class="mini-grid-cell border border-dashed border-gray-800 bg-gray-800 bg-opacity-30" :class="week.stats.pnl > 0 ? 'text-green-500/70' : (week.stats.pnl < 0 ? 'text-red-500/70' : 'text-gray-600')">
+                                        <span class="scale-75 font-mono">{{ week.stats.tradeDays > 0 ? (week.stats.pnl > 0 ? '＋' : (week.stats.pnl < 0 ? '－' : '•')) : '' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-dark-panel border border-gray-800 rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Net Daily P&L (单日交易盈亏柱状图)</h3>
+                        <div style="position: relative; height: 200px; width: 100%;"><canvas id="dailyBarChart"></canvas></div>
+                    </div>
+                    <div class="bg-dark-panel border border-gray-800 rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Daily Net Cumulative P&L (纯交易累计盈亏折线图)</h3>
+                        <div style="position: relative; height: 200px; width: 100%;"><canvas id="cumLineChart"></canvas></div>
+                    </div>
+                    <div class="bg-dark-panel border border-gray-800 rounded-xl p-4 shadow-xl md:col-span-2">
+                        <h3 class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Daily Deposits Flow (独立每日入金柱状图 - 非累计)</h3>
+                        <div style="position: relative; height: 180px; width: 100%;"><canvas id="depositBarChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="bg-dark-panel border border-gray-800 rounded-xl p-4 shadow-xl space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-gray-800 pb-3">
+                        <div class="flex gap-2">
+                            <button @click="tableTab = 'trade'; currentPage = 1;" class="text-xs font-bold px-3 py-1 rounded transition cursor-pointer" :class="tableTab === 'trade' ? 'bg-indigo-950 text-indigo-400 border border-indigo-900' : 'text-gray-500 hover:text-gray-300'">
+                                📈 交易历史 ({{ filterRecords('trade').length }})
+                            </button>
+                            <button @click="tableTab = 'deposit'; currentPage = 1;" class="text-xs font-bold px-3 py-1 rounded transition cursor-pointer" :class="tableTab === 'deposit' ? 'bg-green-950 text-green-400 border border-green-900' : 'text-gray-500 hover:text-gray-300'">
+                                💰 入金历史 ({{ filterRecords('deposit').length }})
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <input type="text" v-model="searchQuery" :placeholder="tableTab === 'trade' ? '🔍 输入代码筛选...' : '🔍 输入备注筛选...'" 
+                                   class="bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 w-44">
+                            <button v-if="selectedIds.length > 0" @click="deleteSelected" class="px-2 py-1 bg-red-900 bg-opacity-60 hover:bg-red-900 text-[10px] text-red-300 rounded border border-red-700 transition cursor-pointer whitespace-nowrap">
+                                批量删除 ({{ selectedIds.length }})
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto text-xs">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="text-gray-500 border-b border-gray-800 select-none">
+                                    <th class="pb-2 w-10"><input type="checkbox" :checked="isCurrentPageAllSelected" @change="toggleSelectAllPage" class="cursor-pointer"></th>
+                                    <th @click="toggleSort('seq')" class="pb-2 cursor-pointer hover:text-gray-300 transition">ID {{ renderSortIcon('seq') }}</th>
+                                    <th @click="toggleSort('date')" class="pb-2 cursor-pointer hover:text-gray-300 transition">日期 {{ renderSortIcon('date') }}</th>
+                                    <th @click="toggleSort('ticker')" class="pb-2 cursor-pointer hover:text-gray-300 transition">{{ tableTab === 'trade' ? '股票代码 (Ticker)' : '渠道 / 备注' }} {{ renderSortIcon('ticker') }}</th>
+                                    <th @click="toggleSort('amount')" class="pb-2 cursor-pointer hover:text-gray-300 transition">数额 {{ renderSortIcon('amount') }}</th>
+                                    <th class="pb-2 text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in paginatedRecords" :key="item.id" class="border-b border-gray-800 border-opacity-40 hover:bg-gray-800 hover:bg-opacity-20">
+                                    <td class="py-2"><input type="checkbox" :value="item.id" v-model="selectedIds" class="cursor-pointer"></td>
+                                    <td class="py-2 text-gray-500">#{{ item.seq }}</td>
+                                    <td class="py-2 text-gray-300">{{ item.date }}</td>
+                                    <td class="py-2 font-mono text-gray-400 uppercase">{{ item.ticker || '-' }}</td>
+                                    <td class="py-2 font-medium" :class="item.type === 'deposit' ? 'text-green-400' : (item.amount > 0 ? 'text-green-400' : (item.amount < 0 ? 'text-red-400' : 'text-gray-400'))">
+                                        {{ item.type === 'deposit' ? '+$' + item.amount.toFixed(2) : formatCurrency(item.amount) }}
+                                    </td>
+                                    <td class="py-2 text-right">
+                                        <button @click="deleteSingle(item.id)" class="text-gray-500 hover:text-red-400 cursor-pointer">删除</button>
+                                    </td>
+                                </tr>
+                                <tr v-if="paginatedRecords.length === 0">
+                                    <td colspan="6" class="text-center py-6 text-gray-600">没有找到符合条件的记录</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div v-if="totalPages > 1" class="flex justify-between items-center text-xs border-t border-gray-800 border-opacity-60 pt-3">
+                        <div class="text-gray-500">第 {{ currentPage }} / {{ totalPages }} 页</div>
+                        <div class="flex items-center gap-2">
+                            <button @click="currentPage = 1" :disabled="currentPage === 1" class="p-1 px-2 bg-gray-800 rounded disabled:opacity-30 hover:bg-gray-700 cursor-pointer">首页</button>
+                            <button @click="currentPage--" :disabled="currentPage === 1" class="p-1 px-2 bg-gray-800 rounded disabled:opacity-30 hover:bg-gray-700 cursor-pointer">◀</button>
+                            <button @click="currentPage++" :disabled="currentPage === totalPages" class="p-1 px-2 bg-gray-800 rounded disabled:opacity-30 hover:bg-gray-700 cursor-pointer">▶</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="selectedDayDetail" @click.self="closeDayDetail" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100] p-4">
+            <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-3 border-b border-gray-800 pb-2">
+                    <h3 class="text-sm font-bold text-white">{{ selectedDayDetail.dateStr }} 交易明细</h3>
+                    <button @click="closeDayDetail" class="text-gray-500 hover:text-gray-300 cursor-pointer text-lg leading-none">✕</button>
+                </div>
+
+                <div class="flex items-center gap-3 text-xs text-gray-400 mb-3">
+                    <span>共 <strong class="text-white">{{ selectedDayDetail.trades.length }}</strong> 笔交易</span>
+                    <span class="font-bold" :class="dayDetailPnl(selectedDayDetail) >= 0 ? 'text-green-400' : 'text-red-400'">
+                        合计 {{ formatCurrency(dayDetailPnl(selectedDayDetail)) }}
+                    </span>
+                </div>
+
+                <div v-if="selectedDayDetail.trades.length > 0" class="space-y-1.5 mb-3">
+                    <div v-for="t in selectedDayDetail.trades" :key="t.id" class="flex justify-between items-center bg-gray-800 bg-opacity-40 rounded px-3 py-2 text-xs">
+                        <span class="font-mono text-gray-300 uppercase">{{ t.ticker || '-' }}</span>
+                        <span class="font-semibold" :class="t.amount > 0 ? 'text-green-400' : (t.amount < 0 ? 'text-red-400' : 'text-gray-400')">{{ formatCurrency(t.amount) }}</span>
+                    </div>
+                </div>
+                <div v-else class="text-xs text-gray-600 text-center py-3">当天没有交易记录</div>
+
+                <div v-if="selectedDayDetail.deposits.length > 0" class="border-t border-gray-800 pt-3 space-y-1.5">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">入金</div>
+                    <div v-for="d in selectedDayDetail.deposits" :key="d.id" class="flex justify-between items-center bg-green-950 bg-opacity-20 rounded px-3 py-2 text-xs">
+                        <span class="font-mono text-gray-300 uppercase">{{ d.ticker || '-' }}</span>
+                        <span class="font-semibold text-green-400">+${{ d.amount.toFixed(2) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </template>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+
+        // ---------------------------------------------------------------
+        // InstantDB setup
+        // Visit https://instantdb.com/dash to create a free app and get an APP_ID.
+        // Paste that APP_ID below. That's the only setup step required —
+        // no server, no schema push needed to get started.
+        // ---------------------------------------------------------------
+        const APP_ID = 'c39b06a1-34be-46b6-9d7e-f306be9b7682';
+        const { init, id: instantId } = instant;
+        const db = init({ appId: APP_ID });
+
+        createApp({
+            setup() {
+                const isLoading = ref(true);
+                const dbErrorMsg = ref(null);
+                const connectionState = ref('connecting');
+
+                // --- Auth state (magic-code email login) ---
+                const authLoading = ref(true);
+                const authUser = ref(null);
+                const authError = ref(null);
+                const loginEmail = ref('');
+                const loginSentEmail = ref('');
+                const loginCode = ref('');
+                const loginError = ref(null);
+                const loginSending = ref(false);
+
+                // Local-only device preference: which account is selected on THIS device.
+                // Accounts and records themselves live in InstantDB and sync everywhere.
+                const currentAccountId = ref(localStorage.getItem('trading_journal_current_account_id') || null);
+
+                const accounts = ref([]);      // [{ id, name, ownerId, createdAt }]
+                const allRecords = ref([]);    // [{ id, type, date, ticker, amount, accountId, ownerId, createdAt }]
+                let defaultAccountCreationAttempted = false;
+                let unsubscribeDataQuery = null;
+
+                db.subscribeConnectionStatus((status) => {
+                    const map = { connecting: 'connecting', opened: 'connecting', authenticated: 'connected', closed: 'closed', errored: 'errored' };
+                    connectionState.value = map[status] || 'connecting';
+                });
+
+                const startDataSubscription = () => {
+                    if (unsubscribeDataQuery) { unsubscribeDataQuery(); }
+                    unsubscribeDataQuery = db.subscribeQuery({ accounts: {}, records: {} }, (resp) => {
+                        isLoading.value = false;
+                        if (resp.error) {
+                            dbErrorMsg.value = resp.error.message;
+                            return;
+                        }
+                        dbErrorMsg.value = null;
+                        accounts.value = (resp.data.accounts || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                        allRecords.value = resp.data.records || [];
+
+                        if (accounts.value.length === 0) {
+                            // First run for this user: create a default account automatically.
+                            if (!defaultAccountCreationAttempted) {
+                                defaultAccountCreationAttempted = true;
+                                const newId = instantId();
+                                db.transact(db.tx.accounts[newId].update({ name: '默认账户', ownerId: authUser.value.id, createdAt: Date.now() }));
+                            }
+                        } else if (!currentAccountId.value || !accounts.value.find(a => a.id === currentAccountId.value)) {
+                            currentAccountId.value = accounts.value[0].id;
+                        }
+
+                        nextTick(() => updateCharts());
+                    });
+                };
+
+                db.subscribeAuth((auth) => {
+                    authLoading.value = auth.isLoading;
+                    authUser.value = auth.user || null;
+                    authError.value = auth.error ? auth.error.message : null;
+
+                    if (auth.user) {
+                        defaultAccountCreationAttempted = false;
+                        startDataSubscription();
+                    } else if (unsubscribeDataQuery) {
+                        unsubscribeDataQuery();
+                        unsubscribeDataQuery = null;
+                        accounts.value = [];
+                        allRecords.value = [];
+                        isLoading.value = true;
+                    }
+                });
+
+                const sendCode = async () => {
+                    if (!loginEmail.value) return;
+                    loginSending.value = true; loginError.value = null;
+                    try {
+                        await db.auth.sendMagicCode({ email: loginEmail.value });
+                        loginSentEmail.value = loginEmail.value;
+                    } catch (err) {
+                        loginError.value = (err && err.body && err.body.message) || '发送失败，请检查邮箱地址';
+                    } finally {
+                        loginSending.value = false;
+                    }
+                };
+
+                const verifyCode = async () => {
+                    if (!loginCode.value) return;
+                    loginSending.value = true; loginError.value = null;
+                    try {
+                        await db.auth.signInWithMagicCode({ email: loginSentEmail.value, code: loginCode.value });
+                        loginEmail.value = ''; loginCode.value = ''; loginSentEmail.value = '';
+                    } catch (err) {
+                        loginError.value = (err && err.body && err.body.message) || '验证码错误，请重试';
+                    } finally {
+                        loginSending.value = false;
+                    }
+                };
+
+                const logout = () => { db.auth.signOut(); };
+
+                // "records" mirrors the original app's shape: the flat array of records
+                // belonging to the currently selected account. Everything below this
+                // point (stats, calendar, charts) reads from `records.value` exactly
+                // like the original localStorage version did.
+                const records = computed(() => allRecords.value.filter(r => r.accountId === currentAccountId.value));
+
+                // Format a Date using its LOCAL calendar date (not UTC). Using
+                // .toISOString() here would shift the date near midnight for any
+                // timezone behind UTC (e.g. it could show "tomorrow" in the evening).
+                const toLocalDateStr = (d) => {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                };
+
+                const form = ref({ type: 'trade', date: toLocalDateStr(new Date()), ticker: '', amount: null });
+                const viewMode = ref('month');
+                const tableTab = ref('trade'); 
+                const searchQuery = ref('');
+
+                const sortKey = ref('seq'); 
+                const sortOrder = ref('desc');     
+
+                const initDate = new Date();
+                const selectedYearMonth = ref(`${initDate.getFullYear()}-${String(initDate.getMonth() + 1).padStart(2, '0')}`);
+                const currentYear = ref(initDate.getFullYear());
+                const currentMonth = computed(() => parseInt(selectedYearMonth.value.split('-')[1]) - 1);
+
+                watch(selectedYearMonth, (newVal) => { if (newVal) { currentYear.value = parseInt(newVal.split('-')[0]); } });
+                watch([tableTab, searchQuery], () => { currentPage.value = 1; });
+
+                const currentPage = ref(1);
+                const pageSize = 10;
+                const selectedIds = ref([]);
+
+                let dailyBarChart = null;
+                let cumLineChart = null;
+                let depositBarChart = null;
+
+                // Whenever the current account's records change (from any device), refresh charts.
+                watch(records, () => {
+                    selectedIds.value = [];
+                    nextTick(() => updateCharts());
+                });
+
+                // Reset UI state whenever the selected account changes, and remember the
+                // choice locally (this is a per-device preference, not synced data).
+                watch(currentAccountId, (newVal) => {
+                    if (newVal) localStorage.setItem('trading_journal_current_account_id', newVal);
+                    searchQuery.value = '';
+                    currentPage.value = 1;
+                    selectedIds.value = [];
+                    nextTick(() => updateCharts());
+                });
+
+                // 核心多账户控制逻辑 (writes go to InstantDB and sync to every device)
+                const promptCreateAccount = () => {
+                    const name = prompt("请输入新账户的名称 (例如: 账户B, 美股期权账户):");
+                    if (!name || name.trim() === "") return;
+                    const cleanedName = name.trim();
+                    if (accounts.value.some(a => a.name === cleanedName)) {
+                        alert("该账户名称已存在！");
+                        return;
+                    }
+                    const newId = instantId();
+                    db.transact(db.tx.accounts[newId].update({ name: cleanedName, ownerId: authUser.value.id, createdAt: Date.now() }));
+                    currentAccountId.value = newId;
+                };
+
+                const onAccountSwitch = () => { /* currentAccountId already updated via v-model; watcher above handles the rest */ };
+
+                const deleteCurrentAccount = () => {
+                    if (accounts.value.length <= 1) {
+                        alert("系统中必须保留至少一个账户，无法删除唯一的账户。");
+                        return;
+                    }
+                    const acc = accounts.value.find(a => a.id === currentAccountId.value);
+                    if (!acc) return;
+                    if (confirm(`⚠️ 危险操作！\n确定要彻底删除账户「${acc.name}」及其内部所有的交易与入金数据吗？此操作不可逆！`)) {
+                        const txs = allRecords.value
+                            .filter(r => r.accountId === currentAccountId.value)
+                            .map(r => db.tx.records[r.id].delete());
+                        txs.push(db.tx.accounts[currentAccountId.value].delete());
+                        db.transact(txs);
+
+                        const remaining = accounts.value.filter(a => a.id !== currentAccountId.value);
+                        currentAccountId.value = remaining.length ? remaining[0].id : null;
+                    }
+                };
+
+                // Stable display numbering for the current account's records, independent
+                // of table sort order (chronological by date, then by creation time).
+                const recordSeqMap = computed(() => {
+                    const sorted = [...records.value].sort((a, b) => {
+                        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+                        return (a.createdAt || 0) - (b.createdAt || 0);
+                    });
+                    const map = {};
+                    sorted.forEach((r, idx) => { map[r.id] = idx + 1; });
+                    return map;
+                });
+
+                const filterRecords = (type) => {
+                    return records.value.filter(r => r.type === type).map(r => ({ ...r, seq: recordSeqMap.value[r.id] }));
+                };
+
+                const toggleSort = (key) => {
+                    if (sortKey.value === key) {
+                        sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortKey.value = key;
+                        sortOrder.value = 'desc'; 
+                    }
+                };
+
+                const renderSortIcon = (key) => {
+                    if (sortKey.value !== key) return '↕';
+                    return sortOrder.value === 'asc' ? '▲' : '▼';
+                };
+
+                const processedRecords = computed(() => {
+                    let items = filterRecords(tableTab.value);
+                    const q = searchQuery.value.trim().toUpperCase();
+                    if (q) {
+                        items = items.filter(item => 
+                            item.date.includes(q) || 
+                            (item.ticker && item.ticker.toUpperCase().includes(q))
+                        );
+                    }
+                    items.sort((a, b) => {
+                        let valA = a[sortKey.value];
+                        let valB = b[sortKey.value];
+                        if (typeof valA === 'string') {
+                            return sortOrder.value === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                        } else {
+                            return sortOrder.value === 'asc' ? valA - valB : valB - valA;
+                        }
+                    });
+                    return items;
+                });
+
+                const addRecord = () => {
+                    if (form.value.amount === null || !currentAccountId.value) return;
+                    db.transact(
+                        db.tx.records[instantId()].update({
+                            type: form.value.type,
+                            date: form.value.date,
+                            ticker: form.value.ticker.trim().toUpperCase() || (form.value.type === 'deposit' ? 'IBKR' : '-'),
+                            amount: parseFloat(form.value.amount),
+                            accountId: currentAccountId.value,
+                            ownerId: authUser.value.id,
+                            createdAt: Date.now(),
+                        })
+                    );
+                    form.value.amount = null;
+                    form.value.ticker = '';
+                };
+
+                const setShortcutDate = (daysAgo) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - daysAgo);
+                    form.value.date = toLocalDateStr(d);
+                };
+
+                const setLastFriday = () => {
+                    const d = new Date();
+                    const dayOfWeek = d.getDay(); 
+                    let diff = dayOfWeek === 6 ? 1 : (dayOfWeek === 0 ? 2 : dayOfWeek + 2);
+                    d.setDate(d.getDate() - diff);
+                    form.value.date = toLocalDateStr(d);
+                };
+
+                const deleteSingle = (recordId) => {
+                    if(confirm(`确定删除该条记录吗？`)) { db.transact(db.tx.records[recordId].delete()); }
+                };
+
+                const deleteSelected = () => {
+                    if(confirm(`确定批量删除已选记录吗？`)) {
+                        db.transact(selectedIds.value.map(rid => db.tx.records[rid].delete()));
+                        selectedIds.value = [];
+                    }
+                };
+
+                const totalPages = computed(() => Math.ceil(processedRecords.value.length / pageSize));
+                const paginatedRecords = computed(() => {
+                    const start = (currentPage.value - 1) * pageSize;
+                    return processedRecords.value.slice(start, start + pageSize);
+                });
+
+                const isCurrentPageAllSelected = computed(() => {
+                    const pageIds = paginatedRecords.value.map(r => r.id);
+                    return pageIds.length > 0 && pageIds.every(rid => selectedIds.value.includes(rid));
+                });
+
+                const toggleSelectAllPage = (e) => {
+                    const pageIds = paginatedRecords.value.map(r => r.id);
+                    if (e.target.checked) { selectedIds.value = Array.from(new Set([...selectedIds.value, ...pageIds])); }
+                    else { selectedIds.value = selectedIds.value.filter(rid => !pageIds.includes(rid)); }
+                };
+
+                const formatCurrency = (val) => {
+                    if (val === 0) return '0.00';
+                    return (val > 0 ? '+' : '') + val.toFixed(2);
+                };
+
+                // Shared helper: given a list of trade records, compute win%, profit factor,
+                // and avg win/loss for that slice. Used for global/day/week/month breakdowns.
+                const computeTradeStats = (tList) => {
+                    const totalTrades = tList.length;
+                    const winningTrades = tList.filter(t => t.amount > 0).length;
+                    const winPct = totalTrades ? ((winningTrades / totalTrades) * 100).toFixed(1) : '0.0';
+
+                    const grossProfit = tList.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
+                    const grossLoss = Math.abs(tList.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0));
+                    const profitFactor = grossLoss === 0 ? (grossProfit ? 'inf' : '0.00') : (grossProfit / grossLoss).toFixed(2);
+
+                    const winTrades = tList.filter(t => t.amount > 0);
+                    const lossTrades = tList.filter(t => t.amount < 0);
+                    const avgWin = winTrades.length ? (winTrades.reduce((acc, t) => acc + t.amount, 0) / winTrades.length) : 0;
+                    const avgLoss = lossTrades.length ? (lossTrades.reduce((acc, t) => acc + t.amount, 0) / lossTrades.length) : 0;
+
+                    return { count: totalTrades, winPct, profitFactor, avgWin, avgLoss };
+                };
+
+                const stats = computed(() => {
+                    const tList = records.value.filter(r => r.type === 'trade');
+                    const dList = records.value.filter(r => r.type === 'deposit');
+                    
+                    const netPnL = tList.reduce((acc, t) => acc + t.amount, 0);
+                    const totalDeposites = dList.reduce((acc, d) => acc + d.amount, 0);
+
+                    // "Day/Week/Month" here follow the date currently selected in the entry
+                    // form, same convention as the original Win% breakdown.
+                    const targetDateStr = form.value.date;
+                    const todayTrades = tList.filter(t => t.date === targetDateStr);
+
+                    const targetDate = new Date(targetDateStr + 'T00:00:00');
+                    const dayOfWeek = targetDate.getDay();
+                    const startOfWeek = new Date(targetDate); startOfWeek.setDate(targetDate.getDate() - dayOfWeek);
+                    const endOfWeek = new Date(targetDate); endOfWeek.setDate(targetDate.getDate() + (6 - dayOfWeek));
+                    const startOfWeekStr = toLocalDateStr(startOfWeek);
+                    const endOfWeekStr = toLocalDateStr(endOfWeek);
+                    const weeklyTrades = tList.filter(t => t.date >= startOfWeekStr && t.date <= endOfWeekStr);
+
+                    const targetYearMonth = targetDateStr.substring(0, 7);
+                    const monthlyTrades = tList.filter(t => t.date.startsWith(targetYearMonth));
+
+                    const global = computeTradeStats(tList);
+                    const day = computeTradeStats(todayTrades);
+                    const week = computeTradeStats(weeklyTrades);
+                    const month = computeTradeStats(monthlyTrades);
+
+                    return {
+                        netPnL, totalDeposits: totalDeposites,
+                        tradeWinPct: global.winPct, dayWinPct: day.winPct, weeklyWinPct: week.winPct, monthlyWinPct: month.winPct,
+                        profitFactor: global.profitFactor, dayProfitFactor: day.profitFactor, weeklyProfitFactor: week.profitFactor, monthlyProfitFactor: month.profitFactor,
+                        avgWin: global.avgWin, avgLoss: global.avgLoss,
+                        dayAvgWin: day.avgWin, dayAvgLoss: day.avgLoss,
+                        weeklyAvgWin: week.avgWin, weeklyAvgLoss: week.avgLoss,
+                        monthlyAvgWin: month.avgWin, monthlyAvgLoss: month.avgLoss,
+                        dayTradeCount: day.count, weeklyTradeCount: week.count, monthlyTradeCount: month.count, globalTradeCount: global.count,
+                    };
+                });
+
+                const dailyMergedMap = computed(() => {
+                    const map = {};
+                    records.value.forEach(r => {
+                        if (!map[r.date]) { map[r.date] = { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0 }; }
+                        if (r.type === 'trade') {
+                            map[r.date].pnl += r.amount;
+                            map[r.date].hasTradeData = true;
+                            map[r.date].tradeCount += 1;
+                            if (r.ticker && r.ticker !== '-') map[r.date].tickers.push(r.ticker);
+                        } else if (r.type === 'deposit') {
+                            map[r.date].deposit += r.amount;
+                            if (r.ticker) map[r.date].tickers.push(r.ticker);
+                        }
+                    });
+                    Object.keys(map).forEach(d => { map[d].tickers = Array.from(new Set(map[d].tickers)); });
+                    return map;
+                });
+
+                const buildWeeksMatrix = (year, monthIdx) => {
+                    const blanks = new Date(year, monthIdx, 1).getDay();
+                    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+                    const cells = [];
+                    for (let b = 0; b < blanks; b++) cells.push({ isPlaceholder: true });
+                    for (let d = 1; d <= daysInMonth; d++) {
+                        const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0 };
+                        cells.push({
+                            isPlaceholder: false, dayNum: d, dateStr: dateStr, 
+                            pnl: dayData.pnl, deposit: dayData.deposit, hasTradeData: dayData.hasTradeData, tickers: dayData.tickers, tradeCount: dayData.tradeCount
+                        });
+                    }
+                    const matrix = [];
+                    while (cells.length > 0) {
+                        const weekDays = cells.splice(0, 7);
+                        while (weekDays.length < 7) weekDays.push({ isPlaceholder: true });
+                        let weeklyPnl = 0, weeklyTradeDays = 0, weeklyTradeCount = 0;
+                        weekDays.forEach(day => {
+                            if (!day.isPlaceholder && day.hasTradeData) {
+                                weeklyPnl += day.pnl;
+                                weeklyTradeDays++;
+                                weeklyTradeCount += day.tradeCount;
+                            }
+                        });
+                        matrix.push({ days: weekDays, stats: { pnl: weeklyPnl, tradeDays: weeklyTradeDays, tradeCount: weeklyTradeCount } });
+                    }
+                    return matrix;
+                };
+
+                const calendarWeeks = computed(() => buildWeeksMatrix(currentYear.value, currentMonth.value));
+                const getYearViewWeeks = (monthNum) => buildWeeksMatrix(currentYear.value, monthNum - 1);
+
+                const getYearViewMonthStats = (monthNum) => {
+                    let pnl = 0, days = 0, trades = 0;
+                    const prefix = `${currentYear.value}-${String(monthNum).padStart(2, '0')}`;
+                    Object.keys(dailyMergedMap.value).forEach(d => {
+                        if (d.startsWith(prefix) && dailyMergedMap.value[d].hasTradeData) {
+                            pnl += dailyMergedMap.value[d].pnl;
+                            days++;
+                            trades += dailyMergedMap.value[d].tradeCount;
+                        }
+                    });
+                    return { pnl, days, trades };
+                };
+
+                const monthlySummary = computed(() => getYearViewMonthStats(currentMonth.value + 1));
+                const toggleViewMode = () => { viewMode.value = viewMode.value === 'month' ? 'year' : 'month'; };
+                const drillDownToMonth = (monthNum) => {
+                    selectedYearMonth.value = `${currentYear.value}-${String(monthNum).padStart(2, '0')}`;
+                    viewMode.value = 'month';
+                };
+
+                // --- Day detail modal: click a calendar cell to see every trade that day ---
+                const selectedDayDetail = ref(null); // { dateStr, trades: [...], deposits: [...] }
+
+                const openDayDetail = (day) => {
+                    if (!day || day.isPlaceholder) return;
+                    const dayRecords = records.value.filter(r => r.date === day.dateStr);
+                    selectedDayDetail.value = {
+                        dateStr: day.dateStr,
+                        trades: dayRecords.filter(r => r.type === 'trade'),
+                        deposits: dayRecords.filter(r => r.type === 'deposit'),
+                    };
+                };
+                const closeDayDetail = () => { selectedDayDetail.value = null; };
+                const dayDetailPnl = (detail) => detail.trades.reduce((acc, t) => acc + t.amount, 0);
+
+                const getCalendarDayBg = (day) => {
+                    if (!day.hasTradeData) {
+                        return day.deposit > 0 ? 'bg-green-950 bg-opacity-20 border-green-900/40 text-gray-400' : 'bg-gray-800 bg-opacity-10 text-gray-600 border-transparent';
+                    }
+                    if (day.pnl > 0) return 'bg-green-950 bg-opacity-40 border-green-800 border-opacity-60 text-white';
+                    if (day.pnl < 0) return 'bg-red-950 bg-opacity-30 border-red-900 border-opacity-50 text-white';
+                    return 'bg-gray-800 bg-opacity-50 border-gray-700 text-white';
+                };
+
+                const prevMonth = () => {
+                    let y = currentYear.value; let m = currentMonth.value;
+                    if (m === 0) { m = 12; y--; } selectedYearMonth.value = `${y}-${String(m).padStart(2, '0')}`;
+                };
+                const nextMonth = () => {
+                    let y = currentYear.value; let m = currentMonth.value + 2;
+                    if (m > 12) { m = 1; y++; } selectedYearMonth.value = `${y}-${String(m).padStart(2, '0')}`;
+                };
+
+                const initCharts = () => {
+                    const barEl = document.getElementById('dailyBarChart');
+                    const lineEl = document.getElementById('cumLineChart');
+                    const depEl = document.getElementById('depositBarChart');
+                    if (!barEl || !lineEl || !depEl) return; // canvases not mounted yet (e.g. not logged in)
+
+                    // Destroy any previous instances (e.g. after logout/login) before recreating.
+                    if (dailyBarChart) { dailyBarChart.destroy(); dailyBarChart = null; }
+                    if (cumLineChart) { cumLineChart.destroy(); cumLineChart = null; }
+                    if (depositBarChart) { depositBarChart.destroy(); depositBarChart = null; }
+
+                    const ctxBar = barEl.getContext('2d');
+                    dailyBarChart = new Chart(ctxBar, {
+                        type: 'bar',
+                        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                    });
+
+                    const ctxLine = lineEl.getContext('2d');
+                    cumLineChart = new Chart(ctxLine, {
+                        type: 'line',
+                        data: { labels: [], datasets: [{ label: '交易累计盈亏', data: [], borderColor: '#6366f1', borderWidth: 2, tensor: 0.1, fill: false, pointRadius: 2 }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                    });
+
+                    const ctxDep = depEl.getContext('2d');
+                    depositBarChart = new Chart(ctxDep, {
+                        type: 'bar',
+                        data: { labels: [], datasets: [{ data: [], backgroundColor: '#10b981' }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                    });
+
+                    setTimeout(() => { updateCharts(); }, 100);
+                };
+
+                const updateCharts = () => {
+                    if (!dailyBarChart || !cumLineChart || !depositBarChart) return;
+                    
+                    const dayTradeMap = {};
+                    const dayDepositMap = {};
+                    
+                    records.value.forEach(r => {
+                        if (r.type === 'trade') dayTradeMap[r.date] = (dayTradeMap[r.date] || 0) + r.amount;
+                        if (r.type === 'deposit') dayDepositMap[r.date] = (dayDepositMap[r.date] || 0) + r.amount;
+                    });
+                    
+                    const tradeDatesOnly = Object.keys(dayTradeMap).sort((a,b) => new Date(a) - new Date(b));
+                    const dailyBarValues = tradeDatesOnly.map(d => dayTradeMap[d]);
+                    dailyBarChart.data.labels = tradeDatesOnly;
+                    dailyBarChart.data.datasets[0].data = dailyBarValues;
+                    dailyBarChart.data.datasets[0].backgroundColor = dailyBarValues.map(v => v > 0 ? '#10b981' : (v < 0 ? '#f43f5e' : '#9ca3af'));
+                    dailyBarChart.update();
+
+                    let cumPnlSum = 0;
+                    const pnlLineValues = tradeDatesOnly.map(d => {
+                        cumPnlSum += dayTradeMap[d];
+                        return cumPnlSum;
+                    });
+                    cumLineChart.data.labels = tradeDatesOnly;
+                    cumLineChart.data.datasets[0].data = pnlLineValues;
+                    cumLineChart.update();
+
+                    const depositDatesOnly = Object.keys(dayDepositMap).sort((a,b) => new Date(a) - new Date(b));
+                    const dailyDepositValues = depositDatesOnly.map(d => dayDepositMap[d]);
+                    depositBarChart.data.labels = depositDatesOnly;
+                    depositBarChart.data.datasets[0].data = dailyDepositValues;
+                    depositBarChart.update();
+                };
+
+                const currentAccountName = computed(() => {
+                    const acc = accounts.value.find(a => a.id === currentAccountId.value);
+                    return acc ? acc.name : '';
+                });
+
+                const exportData = () => {
+                    // 备份仅包含当前账户名和其流水记录（不含内部数据库 id，方便跨库导入）
+                    const backupPackage = {
+                        accountName: currentAccountName.value,
+                        records: records.value.map(r => ({ type: r.type, date: r.date, ticker: r.ticker, amount: r.amount }))
+                    };
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupPackage));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", `journal_${currentAccountName.value}_backup_${toLocalDateStr(new Date())}.json`);
+                    document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+                };
+
+                const importData = (event) => {
+                    const file = event.target.files[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        try {
+                            const imported = JSON.parse(e.target.result);
+                            let recordsToImport = [];
+                            let importedAccountName = null;
+
+                            // 兼容旧版本的单数组备份结构与全新的账户包结构
+                            if (Array.isArray(imported)) {
+                                recordsToImport = imported;
+                            } else if (imported && Array.isArray(imported.records)) {
+                                recordsToImport = imported.records;
+                                importedAccountName = imported.accountName || null;
+                            } else {
+                                alert("读取文件失败，请检查文件格式是否正确。");
+                                return;
+                            }
+
+                            let targetAccountId = currentAccountId.value;
+                            let targetName = currentAccountName.value;
+
+                            if (importedAccountName) {
+                                const existing = accounts.value.find(a => a.name === importedAccountName);
+                                if (existing) {
+                                    targetAccountId = existing.id;
+                                } else {
+                                    const newId = instantId();
+                                    await db.transact(db.tx.accounts[newId].update({ name: importedAccountName, ownerId: authUser.value.id, createdAt: Date.now() }));
+                                    targetAccountId = newId;
+                                }
+                                targetName = importedAccountName;
+                            }
+
+                            const txs = recordsToImport.map(r => db.tx.records[instantId()].update({
+                                type: r.type,
+                                date: r.date,
+                                ticker: r.ticker || '-',
+                                amount: parseFloat(r.amount) || 0,
+                                accountId: targetAccountId,
+                                ownerId: authUser.value.id,
+                                createdAt: Date.now(),
+                            }));
+                            if (txs.length) await db.transact(txs);
+
+                            currentAccountId.value = targetAccountId;
+                            alert(`导入成功！已导入 ${txs.length} 条记录至账户：${targetName}`);
+                        } catch (err) {
+                            console.error(err);
+                            alert("读取文件失败，请检查文件格式是否正确。");
+                        }
+                    };
+                    reader.readAsText(file);
+                    event.target.value = '';
+                };
+
+                // Canvases only exist in the DOM once logged in (they're inside the v-else
+                // block). Initialize charts once authUser becomes truthy, and re-init if the
+                // user logs out then back in (canvases get unmounted/remounted by Vue).
+                watch(authUser, (newVal) => {
+                    if (newVal) nextTick(() => initCharts());
+                });
+                onMounted(() => { if (authUser.value) nextTick(() => initCharts()); });
+
+                return {
+                    accounts, currentAccountId, currentAccountName, promptCreateAccount, onAccountSwitch, deleteCurrentAccount,
+                    isLoading, dbErrorMsg, connectionState,
+                    authLoading, authUser, authError, loginEmail, loginSentEmail, loginCode, loginError, loginSending,
+                    sendCode, verifyCode, logout,
+                    records, form, selectedYearMonth, currentYear, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery,
+                    currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
+                    addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, exportData, importData,
+                    setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
+                    toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
