@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=8">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=8">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=9">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=9">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=8">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=9">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=8">
+    <link rel="manifest" href="manifest.json?v=9">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -27,6 +27,16 @@
     <style>
         body { background-color: #0b0f19; color: #f3f4f6; font-family: sans-serif; }
         [v-cloak] { display: none !important; }
+
+        /* Rich-text day note editor: Tailwind's reset strips default list
+           markers, and contenteditable needs an empty-state placeholder. */
+        .note-editor:empty:before {
+            content: attr(data-placeholder);
+            color: #6b7280;
+            pointer-events: none;
+        }
+        .note-editor ul { list-style: disc; padding-left: 1.25em; }
+        .note-editor ol { list-style: decimal; padding-left: 1.25em; }
 
         /* Hide scrollbars everywhere (still scrollable, just no visible track/thumb).
            Makes the packaged Electron build look like a native desktop app instead
@@ -425,7 +435,10 @@
                                         <div v-for="(day, dIdx) in week.days" :key="wIdx+'-'+dIdx" @click="openDayDetail(day)" class="min-h-[125px] rounded p-2.5 flex flex-col justify-between transition-colors border" :class="day.isPlaceholder ? 'bg-transparent border-transparent text-transparent opacity-0 select-none' : getCalendarDayBg(day) + ' cursor-pointer hover:brightness-125'">
                                             <template v-if="!day.isPlaceholder">
                                                 <div class="flex justify-between items-start w-full">
-                                                    <span class="text-[11px] text-gray-500 font-bold font-mono">{{ day.dayNum }}</span>
+                                                    <span class="text-[11px] text-gray-500 font-bold font-mono flex items-center gap-1">
+                                                        {{ day.dayNum }}
+                                                        <span v-if="day.hasNote" title="有笔记" class="text-[9px]">📝</span>
+                                                    </span>
                                                     <div class="flex items-center gap-1">
                                                         <span v-if="day.tradeCount > 0" class="text-[9px] text-gray-400 font-mono">{{ day.tradeCount }}笔</span>
                                                         <span v-if="day.deposit > 0" class="text-[9px] bg-green-500 text-black px-1 rounded font-extrabold tracking-tighter transform scale-90">DEP</span>
@@ -470,9 +483,10 @@
                                 <div v-for="(week, wIdx) in calendarWeeks" :key="'mweek-'+wIdx">
                                     <div class="grid grid-cols-7 gap-1">
                                         <div v-for="(day, dIdx) in week.days" :key="wIdx+'-m-'+dIdx" @click="openDayDetail(day)"
-                                             class="aspect-square rounded border flex flex-col items-center justify-center transition-colors"
+                                             class="relative aspect-square rounded border flex flex-col items-center justify-center transition-colors"
                                              :class="day.isPlaceholder ? 'border-transparent opacity-0 select-none' : getCalendarDayBg(day) + ' cursor-pointer active:brightness-125'">
                                             <template v-if="!day.isPlaceholder">
+                                                <span v-if="day.hasNote" class="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-indigo-400"></span>
                                                 <span class="text-[10px] font-mono text-gray-400 leading-none">{{ day.dayNum }}</span>
                                                 <span v-if="day.hasTradeData" class="text-[7px] font-bold leading-none mt-0.5 max-w-full truncate px-0.5" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-400')">
                                                     {{ formatDayPnl(day.pnl) }}
@@ -632,6 +646,33 @@
                         <span class="font-semibold text-green-400">+${{ d.amount.toFixed(2) }}</span>
                     </div>
                 </div>
+
+                <div class="border-t border-gray-800 pt-3 mt-3">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[10px] text-gray-500 uppercase tracking-wider">当日复盘笔记</span>
+                        <span v-if="!readOnly" class="text-[10px] text-gray-600">
+                            {{ noteSaveStatus === 'saving' ? '保存中...' : (noteSaveStatus === 'saved' ? '已保存' : '') }}
+                        </span>
+                    </div>
+
+                    <template v-if="!readOnly">
+                        <div class="flex items-center gap-1 mb-1.5">
+                            <button type="button" @mousedown.prevent="applyNoteFormat('bold')" class="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-800 hover:bg-gray-700 text-gray-300 rounded cursor-pointer">B</button>
+                            <button type="button" @mousedown.prevent="applyNoteFormat('italic')" class="w-6 h-6 flex items-center justify-center text-xs italic bg-gray-800 hover:bg-gray-700 text-gray-300 rounded cursor-pointer">I</button>
+                            <button type="button" @mousedown.prevent="applyNoteFormat('underline')" class="w-6 h-6 flex items-center justify-center text-xs underline bg-gray-800 hover:bg-gray-700 text-gray-300 rounded cursor-pointer">U</button>
+                            <span class="w-px h-4 bg-gray-700 mx-0.5"></span>
+                            <button type="button" @mousedown.prevent="applyNoteFormat('insertUnorderedList')" class="w-6 h-6 flex items-center justify-center text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded cursor-pointer" title="项目符号列表">•≡</button>
+                            <button type="button" @mousedown.prevent="applyNoteFormat('insertOrderedList')" class="w-6 h-6 flex items-center justify-center text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded cursor-pointer" title="编号列表">1≡</button>
+                        </div>
+                        <div ref="noteEditorEl" contenteditable="true" @input="onNoteInput"
+                             class="note-editor w-full min-h-[90px] max-h-[240px] overflow-y-auto bg-dark-input border border-gray-700 rounded px-3 py-2 text-xs text-gray-200 leading-relaxed focus:outline-none focus:border-indigo-500"
+                             data-placeholder="写点什么：今天的交易计划执行得怎么样？有什么可以改进的？"></div>
+                    </template>
+                    <template v-else>
+                        <div v-if="currentDayNoteContent" class="note-editor text-xs text-gray-300 leading-relaxed bg-dark-input border border-gray-800 rounded px-3 py-2" v-html="currentDayNoteContent"></div>
+                        <div v-else class="text-xs text-gray-600 text-center py-2">这天没有笔记</div>
+                    </template>
+                </div>
             </div>
         </div>
         </template>
@@ -672,6 +713,7 @@
 
                 const accounts = ref([]);      // [{ id, name, ownerId, createdAt }]
                 const allRecords = ref([]);    // [{ id, type, date, ticker, amount, accountId, ownerId, createdAt }]
+                const allDayNotes = ref([]);   // [{ id, accountId, ownerId, date, content (HTML), updatedAt, shareToken }]
                 let defaultAccountCreationAttempted = false;
                 let unsubscribeDataQuery = null;
 
@@ -682,7 +724,7 @@
 
                 const startDataSubscription = () => {
                     if (unsubscribeDataQuery) { unsubscribeDataQuery(); }
-                    unsubscribeDataQuery = db.subscribeQuery({ accounts: {}, records: {} }, (resp) => {
+                    unsubscribeDataQuery = db.subscribeQuery({ accounts: {}, records: {}, dayNotes: {} }, (resp) => {
                         isLoading.value = false;
                         if (resp.error) {
                             dbErrorMsg.value = resp.error.message;
@@ -691,6 +733,7 @@
                         dbErrorMsg.value = null;
                         accounts.value = (resp.data.accounts || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
                         allRecords.value = resp.data.records || [];
+                        allDayNotes.value = resp.data.dayNotes || [];
 
                         if (accounts.value.length === 0) {
                             // First run for this user: create a default account automatically.
@@ -720,6 +763,7 @@
                         unsubscribeDataQuery = null;
                         accounts.value = [];
                         allRecords.value = [];
+                        allDayNotes.value = [];
                         isLoading.value = true;
                     }
                 });
@@ -734,12 +778,14 @@
                 const sharedError = ref(null);
                 const sharedAccount = ref(null);
                 const sharedRecords = ref([]);
+                const sharedDayNotes = ref([]);
 
                 if (urlShareToken) {
                     db.subscribeQuery(
                         {
                             accounts: { $: { where: { shareToken: urlShareToken } } },
                             records: { $: { where: { shareToken: urlShareToken } } },
+                            dayNotes: { $: { where: { shareToken: urlShareToken } } },
                         },
                         (resp) => {
                             sharedLoading.value = false;
@@ -749,6 +795,7 @@
                                 if (a.date !== b.date) return a.date < b.date ? 1 : -1;
                                 return (b.createdAt || 0) - (a.createdAt || 0);
                             });
+                            sharedDayNotes.value = resp.data.dayNotes || [];
                         },
                         { ruleParams: { shareToken: urlShareToken } }
                     );
@@ -795,6 +842,12 @@
                 const records = computed(() => {
                     if (isShareView.value) return sharedRecords.value;
                     return allRecords.value.filter(r => r.accountId === currentAccountId.value);
+                });
+
+                // Same unified-source pattern as `records` above, for per-day notes.
+                const dayNotesForAccount = computed(() => {
+                    if (isShareView.value) return sharedDayNotes.value;
+                    return allDayNotes.value.filter(n => n.accountId === currentAccountId.value);
                 });
 
                 const readOnly = computed(() => isShareView.value);
@@ -1195,6 +1248,15 @@
                     return map;
                 });
 
+                // Dates that have a non-empty note, for the small indicator dot on calendar cells.
+                const noteDatesSet = computed(() => {
+                    const set = new Set();
+                    dayNotesForAccount.value.forEach(n => {
+                        if (n.content && n.content.replace(/<[^>]*>/g, '').trim().length > 0) set.add(n.date);
+                    });
+                    return set;
+                });
+
                 const buildWeeksMatrix = (year, monthIdx) => {
                     const blanks = new Date(year, monthIdx, 1).getDay();
                     const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
@@ -1205,7 +1267,8 @@
                         const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0 };
                         cells.push({
                             isPlaceholder: false, dayNum: d, dateStr: dateStr, 
-                            pnl: dayData.pnl, deposit: dayData.deposit, hasTradeData: dayData.hasTradeData, tickers: dayData.tickers, tradeCount: dayData.tradeCount
+                            pnl: dayData.pnl, deposit: dayData.deposit, hasTradeData: dayData.hasTradeData, tickers: dayData.tickers, tradeCount: dayData.tradeCount,
+                            hasNote: noteDatesSet.value.has(dateStr),
                         });
                     }
                     const matrix = [];
@@ -1250,6 +1313,11 @@
 
                 // --- Day detail modal: click a calendar cell to see every trade that day ---
                 const selectedDayDetail = ref(null); // { dateStr, trades: [...], deposits: [...] }
+                const noteEditorEl = ref(null);
+                const currentDayNoteId = ref(null); // existing dayNotes row id for this date, if any
+                const noteSaveStatus = ref('idle');  // idle | saving | saved
+                let noteSaveTimer = null;
+                let pendingNoteHtml = null;
 
                 const openDayDetail = (day) => {
                     if (!day || day.isPlaceholder) return;
@@ -1259,9 +1327,59 @@
                         trades: dayRecords.filter(r => r.type === 'trade'),
                         deposits: dayRecords.filter(r => r.type === 'deposit'),
                     };
+
+                    const existingNote = dayNotesForAccount.value.find(n => n.date === day.dateStr);
+                    currentDayNoteId.value = existingNote ? existingNote.id : null;
+                    noteSaveStatus.value = 'idle';
+                    pendingNoteHtml = null;
+                    nextTick(() => {
+                        if (noteEditorEl.value) noteEditorEl.value.innerHTML = (existingNote && existingNote.content) || '';
+                    });
                 };
-                const closeDayDetail = () => { selectedDayDetail.value = null; };
+
+                const flushPendingNoteSave = () => {
+                    if (noteSaveTimer) { clearTimeout(noteSaveTimer); noteSaveTimer = null; }
+                    if (pendingNoteHtml === null || readOnly.value) return;
+                    const html = pendingNoteHtml;
+                    pendingNoteHtml = null;
+                    const id = currentDayNoteId.value || instantId();
+                    currentDayNoteId.value = id;
+                    db.transact(db.tx.dayNotes[id].update({
+                        accountId: currentAccountId.value,
+                        ownerId: authUser.value.id,
+                        date: selectedDayDetail.value.dateStr,
+                        content: html,
+                        updatedAt: Date.now(),
+                        shareToken: (currentAccount.value && currentAccount.value.shareToken) || null,
+                    })).then(() => { noteSaveStatus.value = 'saved'; }).catch(() => { noteSaveStatus.value = 'idle'; });
+                };
+
+                const onNoteInput = () => {
+                    if (!noteEditorEl.value) return;
+                    pendingNoteHtml = noteEditorEl.value.innerHTML;
+                    noteSaveStatus.value = 'saving';
+                    if (noteSaveTimer) clearTimeout(noteSaveTimer);
+                    noteSaveTimer = setTimeout(flushPendingNoteSave, 800);
+                };
+
+                const applyNoteFormat = (cmd) => {
+                    if (!noteEditorEl.value) return;
+                    noteEditorEl.value.focus();
+                    document.execCommand(cmd, false, null);
+                    onNoteInput();
+                };
+
+                const closeDayDetail = () => {
+                    flushPendingNoteSave();
+                    selectedDayDetail.value = null;
+                };
                 const dayDetailPnl = (detail) => detail.trades.reduce((acc, t) => acc + t.amount, 0);
+
+                const currentDayNoteContent = computed(() => {
+                    if (!selectedDayDetail.value) return '';
+                    const note = dayNotesForAccount.value.find(n => n.date === selectedDayDetail.value.dateStr);
+                    return (note && note.content) || '';
+                });
 
                 const getCalendarDayBg = (day) => {
                     if (!day.hasTradeData) {
@@ -1445,6 +1563,7 @@
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, importData,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
                     toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl,
+                    noteEditorEl, noteSaveStatus, onNoteInput, applyNoteFormat, currentDayNoteContent,
                     currentAccount, shareUrl, shareBusy, shareLinkVisible, shareCurrentAccount, revokeShare, copyShareLink,
                     isShareView, readOnly, sharedLoading, sharedError, sharedAccount, sharedRecords,
                 };
