@@ -2,6 +2,39 @@
 
 一个纯前端、无需后端服务器的交易日志 App。用邮箱验证码登录，数据实时同步到 [InstantDB](https://instantdb.com)（多设备共享同一份数据），支持多账户、日历盈亏视图、图表统计、只读分享链接，并可作为 PWA 添加到手机主屏幕，或用 Electron 打包成桌面 App。
 
+## 截图
+
+**整体界面**（月视图日历 + 统计面板 + 图表 + 交易历史）
+
+![整体界面](screenshots/overview.png)
+
+<details>
+<summary>更多截图（点击展开）</summary>
+
+<br>
+
+**年视图日历** —— 一年 12 个月的盈亏概览，点进某个月自动跳转到月视图
+
+![年视图日历](screenshots/calendar-year.png)
+
+**月视图日历** —— 每天的盈亏 / 入金一目了然，右侧是每周汇总，点击某天可查看当天交易明细
+
+![月视图日历](screenshots/calendar-month.png)
+
+**统计面板** —— 总盈亏、总入金、Trade Win %、Profit Factor、Avg Win/Loss，以及做多 / 做空胜率，全部按全局 / 当天 / 当周 / 当月拆分
+
+![统计面板](screenshots/stats.png)
+
+**图表** —— 每日盈亏柱状图、累计盈亏曲线、每日入金柱状图
+
+![图表](screenshots/charts.png)
+
+**交易历史** —— 可搜索、排序、分页、批量删除，做多 / 做空方向一目了然
+
+![交易历史](screenshots/history.png)
+
+</details>
+
 ## 功能
 
 - **邮箱验证码登录**，数据云端实时同步（电脑/手机自动同步，不依赖本地存储）
@@ -10,10 +43,10 @@
 - **统计面板**：总盈亏、总入金、胜率、Profit Factor、平均盈亏（按全局/当天/当周/当月拆分）
 - **图表**：每日盈亏柱状图、累计盈亏曲线、每日入金柱状图
 - **交易 / 入金历史表格**：搜索、排序、分页、批量删除
-- **只读分享链接**：生成一个 `?share=TOKEN` 链接，对方无需登录即可查看你的账户（日历、统计、图表、历史记录都能看），但看不到、也碰不了任何编辑功能
+- **只读分享链接**：生成一个 `?share=TOKEN` 链接，对方无需登录即可查看你的账户（日历、统计、图表、历史记录），但无法编辑
 - **导出 / 导入备份**：JSON 格式，跨设备迁移或本地留档
 - **PWA**：支持"添加到主屏幕"，有独立图标和启动主题色
-- **Electron 友好**：全局隐藏了滚动条，打包成桌面 App 后不会露出网页感的滚动条
+- **Electron 友好**：全局隐藏了滚动条，打包成桌面 App 后不会露出滚动条
 
 ## 技术栈
 
@@ -36,6 +69,13 @@
 │   ├── icon-512.png                 PWA 高清图标 / 生成 logo-full.png 的素材
 │   └── apple-touch-icon.png         iOS 主屏幕图标（180×180，不透明背景）
 ├── logo-full.png                    完整版 Logo（图形 + "TRADING JOURNAL" 字样），用于 README / 官网 / 启动页，不用于小尺寸图标
+├── screenshots/
+│   ├── overview.png                  整体界面（月视图 + 统计 + 图表 + 历史）
+│   ├── calendar-year.png             年视图日历
+│   ├── calendar-month.png            月视图日历
+│   ├── stats.png                     统计面板
+│   ├── charts.png                    图表
+│   └── history.png                   交易历史表格
 └── instantdb-permissions-setup.md   InstantDB 后台需要粘贴的权限规则说明
 ```
 
@@ -46,7 +86,7 @@
 去 [instantdb.com/dash](https://instantdb.com/dash) 免费注册一个 App，拿到 `APP_ID`，替换掉 `index.html` 里的这一行：
 
 ```js
-const APP_ID = 'xxxxxxxxx';
+const APP_ID = '';
 ```
 
 ### 2. 配置权限规则（Permissions）
@@ -68,4 +108,3 @@ InstantDB 后台 → 你的 App → **Permissions**，把 `instantdb-permissions
 **部署到 GitHub Pages / 任意静态网站托管**：把整个文件夹（`index.html`、`manifest.json`、`icons/`、`logo-full.png`）原样上传，保持相对路径不变即可，不需要任何构建步骤。部署到真实域名后，"只读分享链接"会自动变成对方也能打开的 `https://...` 地址。
 
 **打包成 Electron 桌面 App**：把 `index.html` 作为 `BrowserWindow` 加载的页面即可；应用图标（任务栏/Dock）需要在 Electron 的打包配置（如 `electron-builder` 的 `icon` 字段）里单独指定，`favicon`/`apple-touch-icon` 这些网页 meta 标签不会影响它。
-
