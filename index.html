@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=16">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=16">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=18">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=18">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=16">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=18">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=16">
+    <link rel="manifest" href="manifest.json?v=18">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -214,21 +214,39 @@
             <div class="space-y-6 xl:col-span-1">
                 <div v-if="!readOnly" class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
                     <div class="flex bg-gray-800 p-1 rounded-lg mb-4">
-                        <button type="button" @click="form.type = 'trade'; formError = ''" 
+                        <button type="button" @click="switchFormType('trade')" 
                                 class="flex-1 text-xs py-1.5 rounded font-medium transition cursor-pointer"
                                 :class="form.type === 'trade' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'">
                             📈 交易盈亏
                         </button>
-                        <button type="button" @click="form.type = 'deposit'; formError = ''" 
+                        <button type="button" @click="switchFormType('deposit')" 
                                 class="flex-1 text-xs py-1.5 rounded font-medium transition cursor-pointer"
                                 :class="form.type === 'deposit' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'">
                             💰 资金入金
                         </button>
                     </div>
 
-                    <h2 class="text-sm font-semibold text-gray-400 mb-4 tracking-wider uppercase">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-2 tracking-wider uppercase flex items-center justify-between">
                         {{ form.type === 'trade' ? '记一笔交易' : '记录入金 (Deposit)' }}
+                        <button v-if="form.type === 'trade'" type="button" @click="toggleReplayMode"
+                                class="normal-case text-[10px] px-2 py-1 rounded font-medium tracking-normal transition cursor-pointer"
+                                :class="replayMode ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'">
+                            📼 K线回放模式{{ replayMode ? '（已开启）' : '' }}
+                        </button>
                     </h2>
+                    <div v-if="replayMode" class="bg-indigo-950 bg-opacity-40 border border-indigo-800/50 rounded-lg px-3 py-2 mb-3">
+                        <template v-if="replayTicker">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] text-indigo-300">已锁定代码 <strong class="font-mono text-white">{{ replayTicker }}</strong></span>
+                                <button type="button" @click="unlockReplayTicker" class="text-[11px] px-2 py-1 rounded bg-indigo-700 hover:bg-indigo-600 text-white font-medium transition cursor-pointer whitespace-nowrap">
+                                    🔓 更换代码
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-indigo-300/70 mt-1">之后新增交易会自动填入这个代码</p>
+                        </template>
+                        <p v-else class="text-[10px] text-indigo-300 leading-relaxed">回放模式已开启——填写并保存第一笔交易后，代码会自动锁定，之后新增交易不用再重复输入。</p>
+                    </div>
+                    <div v-else class="mb-2"></div>
                     
                     <form @submit.prevent="addRecord" class="space-y-4">
                         <div>
@@ -246,7 +264,9 @@
                         <template v-if="form.type === 'trade'">
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">股票代码 (Ticker)</label>
-                                <input type="text" v-model="form.ticker" required placeholder="例如: AAPL, TSLA" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 uppercase focus:outline-none focus:border-indigo-500">
+                                <input type="text" v-model="form.ticker" required :readonly="replayMode && !!replayTicker" placeholder="例如: AAPL, TSLA"
+                                       class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 uppercase focus:outline-none focus:border-indigo-500"
+                                       :class="replayMode && replayTicker ? 'opacity-70 cursor-not-allowed' : ''">
                             </div>
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">交易方向</label>
@@ -974,6 +994,37 @@
                 };
 
                 const form = ref({ type: 'trade', date: toLocalDateStr(new Date()), ticker: '', amount: null, shares: null, direction: '', entryPrice: null, takeProfitPrice: null, stopLossPrice: null });
+                const replayMode = ref(false);
+                const replayTicker = ref('');
+
+                const toggleReplayMode = () => {
+                    replayMode.value = !replayMode.value;
+                    if (!replayMode.value) {
+                        // Leaving replay mode: unlock and clear the sticky ticker.
+                        replayTicker.value = '';
+                        if (form.value.type === 'trade') form.value.ticker = '';
+                    }
+                };
+
+                const unlockReplayTicker = () => {
+                    // Stay in replay mode, but let the next saved trade set a new
+                    // sticky ticker instead of the current one.
+                    replayTicker.value = '';
+                    form.value.ticker = '';
+                };
+
+                const switchFormType = (type) => {
+                    formError.value = '';
+                    // The ticker field is shared between the trade form (股票代码) and
+                    // the deposit form (渠道/备注) — don't let a replay-locked ticker
+                    // leak into the deposit field, and restore it when switching back.
+                    if (type === 'deposit' && form.value.type === 'trade') {
+                        form.value.ticker = '';
+                    } else if (type === 'trade' && replayMode.value && replayTicker.value) {
+                        form.value.ticker = replayTicker.value;
+                    }
+                    form.value.type = type;
+                };
                 const formError = ref('');
                 const viewMode = ref('month');
                 const tableTab = ref('trade'); 
@@ -1158,8 +1209,15 @@
 
                     db.transact(db.tx.records[instantId()].update(payload));
 
+                    if (form.value.type === 'trade' && replayMode.value) {
+                        // K线回放模式: lock in this ticker so it carries over to the
+                        // next trade automatically instead of resetting to empty.
+                        replayTicker.value = tickerTrimmed.toUpperCase();
+                        form.value.ticker = replayTicker.value;
+                    } else {
+                        form.value.ticker = '';
+                    }
                     form.value.amount = null;
-                    form.value.ticker = '';
                     form.value.shares = null;
                     form.value.direction = '';
                     form.value.entryPrice = null;
@@ -1639,6 +1697,7 @@
                     authLoading, authUser, authError, loginEmail, loginSentEmail, loginCode, loginError, loginSending,
                     sendCode, verifyCode, logout,
                     records, form, formError, selectedYearMonth, currentYear, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter,
+                    replayMode, replayTicker, toggleReplayMode, unlockReplayTicker, switchFormType,
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, importData,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
