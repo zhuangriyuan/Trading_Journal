@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=9">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=9">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=10">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=10">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=9">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=10">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=9">
+    <link rel="manifest" href="manifest.json?v=10">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -416,6 +416,8 @@
                         <div v-if="viewMode === 'month'" class="text-xs text-gray-400 flex items-center gap-4 bg-gray-900 bg-opacity-40 px-3 py-1.5 rounded-lg border border-gray-800/60">
                             <div>Monthly stats: <span class="font-bold ml-1" :class="monthlySummary.pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ monthlySummary.pnl >= 0 ? '+' : '' }}{{ monthlySummary.pnl.toFixed(2) }}</span></div>
                             <div class="w-px h-3 bg-gray-800"></div>
+                            <div v-if="monthlySummary.winPct !== null">胜率 <span class="text-indigo-300 font-medium">{{ monthlySummary.winPct.toFixed(1) }}%</span></div>
+                            <div v-if="monthlySummary.winPct !== null" class="w-px h-3 bg-gray-800"></div>
                             <div><span class="text-gray-200 font-medium">{{ monthlySummary.days }}</span> 天进行了交易</div>
                             <div class="w-px h-3 bg-gray-800"></div>
                             <div><span class="text-gray-200 font-medium">{{ monthlySummary.trades }}</span> 笔交易</div>
@@ -450,6 +452,7 @@
                                                     <span v-if="day.hasTradeData" class="text-xs font-black block leading-none tracking-wide truncate" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-300')">
                                                         {{ formatDayPnl(day.pnl) }}
                                                     </span>
+                                                    <span v-if="day.winPct !== null" class="text-[9px] text-gray-500 block leading-none">胜率 {{ day.winPct.toFixed(0) }}%</span>
                                                     <span v-if="day.deposit > 0" class="text-[11px] font-bold block leading-none text-green-400/90 font-mono">
                                                         +${{ day.deposit.toFixed(2) }}
                                                     </span>
@@ -463,6 +466,7 @@
                                         <div class="min-h-[125px] rounded p-2.5 flex flex-col justify-center border border-dashed border-gray-800 bg-gray-900 bg-opacity-20 text-left pl-3 border-l-2 border-l-indigo-900/60">
                                             <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Week {{ wIdx + 1 }}</span>
                                             <span class="text-xs font-bold mt-1.5 leading-none" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-400')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
+                                            <span v-if="week.stats.winPct !== null" class="text-[10px] text-indigo-300 mt-1 font-medium">胜率 {{ week.stats.winPct.toFixed(0) }}%</span>
                                             <span class="text-[10px] text-gray-400 mt-2 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeDays }}</strong> 天交易</span>
                                             <span class="text-[10px] text-gray-400 mt-0.5 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeCount }}</strong> 笔交易</span>
                                         </div>
@@ -488,15 +492,19 @@
                                             <template v-if="!day.isPlaceholder">
                                                 <span v-if="day.hasNote" class="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-indigo-400"></span>
                                                 <span class="text-[10px] font-mono text-gray-400 leading-none">{{ day.dayNum }}</span>
-                                                <span v-if="day.hasTradeData" class="text-[7px] font-bold leading-none mt-0.5 max-w-full truncate px-0.5" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-400')">
-                                                    {{ formatDayPnl(day.pnl) }}
-                                                </span>
+                                                <template v-if="day.hasTradeData">
+                                                    <span class="text-[7px] font-bold leading-none mt-0.5 max-w-full truncate px-0.5" :class="day.pnl > 0 ? 'text-green-400' : (day.pnl < 0 ? 'text-red-400' : 'text-gray-400')">
+                                                        {{ formatDayPnl(day.pnl) }}
+                                                    </span>
+                                                    <span v-if="day.winPct !== null" class="text-[6px] text-gray-500 leading-none max-w-full truncate px-0.5">{{ day.winPct.toFixed(0) }}%</span>
+                                                </template>
                                                 <span v-else-if="day.deposit > 0" class="text-[9px] font-bold leading-none mt-0.5 text-green-400">DEP</span>
                                             </template>
                                         </div>
                                     </div>
                                     <div class="flex justify-between items-center text-[10px] text-gray-500 mt-1 px-0.5">
                                         <span class="font-medium">Week {{ wIdx + 1 }}</span>
+                                        <span v-if="week.stats.winPct !== null" class="text-indigo-300">胜率{{ week.stats.winPct.toFixed(0) }}%</span>
                                         <span class="font-bold" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-500')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
                                         <span>{{ week.stats.tradeDays }}天 · {{ week.stats.tradeCount }}笔</span>
                                     </div>
@@ -509,7 +517,10 @@
                         <div v-for="mIdx in 12" :key="'month-card-'+mIdx" @click="drillDownToMonth(mIdx)" class="bg-gray-900 bg-opacity-40 border border-gray-800 hover:border-indigo-500/50 rounded-xl p-3 transition cursor-pointer group">
                             <div class="flex justify-between items-center mb-2 border-b border-gray-800/60 pb-1">
                                 <span class="text-xs font-bold text-gray-300 group-hover:text-indigo-400 transition">{{ currentYear }}年 {{ mIdx }}月</span>
-                                <span class="text-[10px] font-mono" :class="getYearViewMonthStats(mIdx).pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ getYearViewMonthStats(mIdx).pnl >= 0 ? '+' : '' }}{{ Math.round(getYearViewMonthStats(mIdx).pnl) }}</span>
+                                <span class="flex items-center gap-1.5">
+                                    <span v-if="getYearViewMonthStats(mIdx).winPct !== null" class="text-[9px] text-indigo-300">{{ getYearViewMonthStats(mIdx).winPct.toFixed(0) }}%</span>
+                                    <span class="text-[10px] font-mono" :class="getYearViewMonthStats(mIdx).pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ getYearViewMonthStats(mIdx).pnl >= 0 ? '+' : '' }}{{ Math.round(getYearViewMonthStats(mIdx).pnl) }}</span>
+                                </span>
                             </div>
                             <div class="grid grid-cols-8 gap-0.5 text-center mb-1">
                                 <div v-for="h in ['日','一','二','三','四','五','六','W']" class="text-[8px] text-gray-600 scale-90">{{ h }}</div>
@@ -1233,11 +1244,12 @@
                 const dailyMergedMap = computed(() => {
                     const map = {};
                     records.value.forEach(r => {
-                        if (!map[r.date]) { map[r.date] = { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0 }; }
+                        if (!map[r.date]) { map[r.date] = { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0 }; }
                         if (r.type === 'trade') {
                             map[r.date].pnl += r.amount;
                             map[r.date].hasTradeData = true;
                             map[r.date].tradeCount += 1;
+                            if (r.amount > 0) map[r.date].winCount += 1;
                             if (r.ticker && r.ticker !== '-') map[r.date].tickers.push(r.ticker);
                         } else if (r.type === 'deposit') {
                             map[r.date].deposit += r.amount;
@@ -1264,10 +1276,11 @@
                     for (let b = 0; b < blanks; b++) cells.push({ isPlaceholder: true });
                     for (let d = 1; d <= daysInMonth; d++) {
                         const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                        const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0 };
+                        const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0 };
                         cells.push({
                             isPlaceholder: false, dayNum: d, dateStr: dateStr, 
                             pnl: dayData.pnl, deposit: dayData.deposit, hasTradeData: dayData.hasTradeData, tickers: dayData.tickers, tradeCount: dayData.tradeCount,
+                            winCount: dayData.winCount, winPct: dayData.tradeCount ? (dayData.winCount / dayData.tradeCount * 100) : null,
                             hasNote: noteDatesSet.value.has(dateStr),
                         });
                     }
@@ -1275,15 +1288,17 @@
                     while (cells.length > 0) {
                         const weekDays = cells.splice(0, 7);
                         while (weekDays.length < 7) weekDays.push({ isPlaceholder: true });
-                        let weeklyPnl = 0, weeklyTradeDays = 0, weeklyTradeCount = 0;
+                        let weeklyPnl = 0, weeklyTradeDays = 0, weeklyTradeCount = 0, weeklyWinCount = 0;
                         weekDays.forEach(day => {
                             if (!day.isPlaceholder && day.hasTradeData) {
                                 weeklyPnl += day.pnl;
                                 weeklyTradeDays++;
                                 weeklyTradeCount += day.tradeCount;
+                                weeklyWinCount += day.winCount;
                             }
                         });
-                        matrix.push({ days: weekDays, stats: { pnl: weeklyPnl, tradeDays: weeklyTradeDays, tradeCount: weeklyTradeCount } });
+                        const weeklyWinPct = weeklyTradeCount ? (weeklyWinCount / weeklyTradeCount * 100) : null;
+                        matrix.push({ days: weekDays, stats: { pnl: weeklyPnl, tradeDays: weeklyTradeDays, tradeCount: weeklyTradeCount, winPct: weeklyWinPct } });
                     }
                     return matrix;
                 };
@@ -1292,16 +1307,18 @@
                 const getYearViewWeeks = (monthNum) => buildWeeksMatrix(currentYear.value, monthNum - 1);
 
                 const getYearViewMonthStats = (monthNum) => {
-                    let pnl = 0, days = 0, trades = 0;
+                    let pnl = 0, days = 0, trades = 0, wins = 0;
                     const prefix = `${currentYear.value}-${String(monthNum).padStart(2, '0')}`;
                     Object.keys(dailyMergedMap.value).forEach(d => {
                         if (d.startsWith(prefix) && dailyMergedMap.value[d].hasTradeData) {
                             pnl += dailyMergedMap.value[d].pnl;
                             days++;
                             trades += dailyMergedMap.value[d].tradeCount;
+                            wins += dailyMergedMap.value[d].winCount;
                         }
                     });
-                    return { pnl, days, trades };
+                    const winPct = trades ? (wins / trades * 100) : null;
+                    return { pnl, days, trades, winPct };
                 };
 
                 const monthlySummary = computed(() => getYearViewMonthStats(currentMonth.value + 1));
