@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=25">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=25">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=26">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=26">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=25">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=26">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=25">
+    <link rel="manifest" href="manifest.json?v=26">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -667,14 +667,16 @@
             </div>
         </div>
 
-        <div v-if="selectedDayDetail" @click.self="closeDayDetail" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100] p-4">
-            <div class="bg-dark-panel border border-gray-800 rounded-xl w-full max-w-2xl shadow-2xl max-h-[85vh] flex flex-col overflow-hidden">
+        <div v-if="selectedDayDetail" @click.self="closeDayDetail" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]"
+             style="padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));">
+            <div class="bg-dark-panel border border-gray-800 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden"
+                 style="max-height: 85vh; max-height: 85dvh;">
                 <div class="flex justify-between items-center px-5 pt-5 pb-2 border-b border-gray-800 flex-shrink-0">
                     <h3 class="text-sm font-bold text-white">{{ selectedDayDetail.dateStr }} 交易明细</h3>
                     <button @click="closeDayDetail" class="text-gray-500 hover:text-gray-300 cursor-pointer text-lg leading-none w-8 h-8 flex items-center justify-center -mr-2">✕</button>
                 </div>
 
-                <div class="overflow-y-auto px-5 pb-5 pt-3" style="-webkit-overflow-scrolling: touch;">
+                <div class="overflow-y-auto px-5 pb-5 pt-3" style="-webkit-overflow-scrolling: touch; overscroll-behavior: contain;">
                 <div class="flex items-center gap-3 text-xs text-gray-400 mb-3">
                     <span>共 <strong class="text-white">{{ selectedDayDetail.trades.length }}</strong> 笔交易</span>
                     <span class="font-bold" :class="dayDetailPnl(selectedDayDetail) >= 0 ? 'text-green-400' : 'text-red-400'">
@@ -1587,6 +1589,22 @@
                 let noteSaveTimer = null;
                 let pendingNoteHtml = null;
 
+                let savedScrollY = 0;
+                const lockBodyScroll = () => {
+                    savedScrollY = window.scrollY;
+                    document.body.style.position = 'fixed';
+                    document.body.style.top = `-${savedScrollY}px`;
+                    document.body.style.left = '0';
+                    document.body.style.right = '0';
+                };
+                const unlockBodyScroll = () => {
+                    document.body.style.position = '';
+                    document.body.style.top = '';
+                    document.body.style.left = '';
+                    document.body.style.right = '';
+                    window.scrollTo(0, savedScrollY);
+                };
+
                 const openDayDetail = (day) => {
                     if (!day || day.isPlaceholder) return;
                     const dayRecords = records.value.filter(r => r.date === day.dateStr);
@@ -1595,6 +1613,7 @@
                         trades: dayRecords.filter(r => r.type === 'trade'),
                         deposits: dayRecords.filter(r => r.type === 'deposit'),
                     };
+                    lockBodyScroll();
 
                     const existingNote = dayNotesForAccount.value.find(n => n.date === day.dateStr);
                     currentDayNoteId.value = existingNote ? existingNote.id : null;
@@ -1642,6 +1661,7 @@
                 const closeDayDetail = () => {
                     flushPendingNoteSave();
                     selectedDayDetail.value = null;
+                    unlockBodyScroll();
                 };
                 const dayDetailPnl = (detail) => detail.trades.reduce((acc, t) => acc + t.amount, 0);
 
