@@ -119,3 +119,44 @@
 - `records.stopLossPrice`（number，非必填）
 
 跟之前 `direction`/`shares` 一样，第一次用之前要么去 Explorer 手动建好这三个字段，要么用"改 attrs 为 true → 保存一笔带这三个字段的交易 → 改回 false"的方法（见上面"快速建表步骤"）。
+
+## 日历图片链接（dayNotes.images）
+
+日历详情弹窗的笔记下面新增了"图片链接"区域，可以贴图床的直链进去，不需要改权限规则（跟笔记正文用的是同一张 `dayNotes` 表），但需要新增一个字段：
+
+- `dayNotes.images`（string，非必填——存的是图片链接数组序列化后的 JSON 文本，跟 `content` 字段是同样的存储方式）
+
+老规矩：第一次用之前，要么去 Explorer 手动建这个字段，要么用"改 attrs 为 true → 添加一张图片 → 改回 false"的方法（见上面"快速建表步骤"）。
+
+图片本身不会存进 InstantDB，只是存了一个链接文字，图片文件还在你贴的那个图床（imgbb / postimages 等）上，所以不会对 InstantDB 的存储配额有什么实际影响。
+
+## 图片上传（改用 ImgBB 直传）
+
+原本"图片链接"功能升级成了真正的"从电脑/相册上传"——用的是 [ImgBB](https://api.imgbb.com/) 的免费上传接口，浏览器直接把图片传过去，拿到直链后存进 `dayNotes.images` 字段（跟之前一样，存的还是链接的 JSON 数组文本，只是现在每张图存的是 `{url, thumb}` 一对链接，`thumb` 是 ImgBB 自动生成的缩略图，加载更快）。
+
+- 不需要改 InstantDB 的表/字段/权限规则，`dayNotes.images` 还是原来那个字段，存储格式只是从"字符串数组"变成"对象数组"，代码里做了兼容处理，老数据不会丢
+- 需要你自己去 [api.imgbb.com](https://api.imgbb.com/) 免费申请一个 API Key，填进 App 里的"⚙️ 上传设置"，只存在你自己浏览器本地（`localStorage`），不会经过 InstantDB 也不会传给我
+- 图片文件本身存在 ImgBB，不会占用 InstantDB 的存储配额
+
+## ImgBB API Key 跨设备同步（userSettings 表）
+
+图片上传的 API Key 现在会同步进 InstantDB，不再只存在单个浏览器里，需要新建一张表：
+
+- 表名：`userSettings`
+- 字段：`ownerId`（string）、`imgbbApiKey`（string，非必填）、`updatedAt`（number）
+
+权限规则（合并进 Permissions，跟其他表平级）：
+
+```json
+"userSettings": {
+  "bind": ["isOwner", "auth.id != null && auth.id == data.ownerId"],
+  "allow": {
+    "view": "isOwner",
+    "create": "auth.id != null && auth.id == data.ownerId",
+    "update": "isOwner",
+    "delete": "isOwner"
+  }
+}
+```
+
+这张表只有你自己能看，不参与"只读分享"（别人打开你的分享链接看不到、也不需要用到这个 Key）。同样要走一遍"快速建表步骤"（改 attrs 为 true → 在"上传设置"里保存一次 Key → 改回 false，或者去 Explorer 手动建）。
