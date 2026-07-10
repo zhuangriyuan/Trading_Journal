@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=26">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=26">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=30">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=30">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=26">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=30">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=26">
+    <link rel="manifest" href="manifest.json?v=30">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -287,6 +287,26 @@
                                 </div>
                             </div>
                             <div>
+                                <label class="block text-xs text-gray-400 mb-1">进场评级 <span class="text-gray-600">选填</span></label>
+                                <div class="flex gap-2">
+                                    <button type="button" @click="form.grade = (form.grade === 'A' ? '' : 'A')"
+                                            class="flex-1 text-sm py-2.5 rounded-lg font-black transition cursor-pointer border-2"
+                                            :class="form.grade === 'A' ? 'bg-emerald-500 text-emerald-950 border-emerald-300 scale-105 shadow-lg shadow-emerald-900/50' : 'bg-gray-800 text-gray-500 border-transparent hover:border-gray-600'" title="完美符合规则">
+                                        {{ form.grade === 'A' ? '✓ A' : 'A' }}
+                                    </button>
+                                    <button type="button" @click="form.grade = (form.grade === 'B' ? '' : 'B')"
+                                            class="flex-1 text-sm py-2.5 rounded-lg font-black transition cursor-pointer border-2"
+                                            :class="form.grade === 'B' ? 'bg-amber-500 text-amber-950 border-amber-300 scale-105 shadow-lg shadow-amber-900/50' : 'bg-gray-800 text-gray-500 border-transparent hover:border-gray-600'" title="基本符合">
+                                        {{ form.grade === 'B' ? '✓ B' : 'B' }}
+                                    </button>
+                                    <button type="button" @click="form.grade = (form.grade === 'C' ? '' : 'C')"
+                                            class="flex-1 text-sm py-2.5 rounded-lg font-black transition cursor-pointer border-2"
+                                            :class="form.grade === 'C' ? 'bg-orange-500 text-orange-950 border-orange-300 scale-105 shadow-lg shadow-orange-900/50' : 'bg-gray-800 text-gray-500 border-transparent hover:border-gray-600'" title="勉强符合">
+                                        {{ form.grade === 'C' ? '✓ C' : 'C' }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
                                 <label class="block text-xs text-gray-400 mb-1">股数 (Shares) <span class="text-gray-600">选填</span></label>
                                 <input type="number" step="0.01" min="0" v-model.number="form.shares" placeholder="例如: 100 或 12.5" class="w-full bg-dark-input border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500">
                             </div>
@@ -427,6 +447,36 @@
                             <div><span class="block text-[9px] text-gray-500">当天</span><span class="text-xs font-semibold text-red-400">{{ stats.dayShortWinPct }}%</span></div>
                             <div><span class="block text-[9px] text-gray-500">当周</span><span class="text-xs font-semibold text-red-400">{{ stats.weeklyShortWinPct }}%</span></div>
                             <div><span class="block text-[9px] text-gray-500">当月</span><span class="text-xs font-semibold text-red-400">{{ stats.monthlyShortWinPct }}%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="relative group border-t border-gray-800 pt-3 col-span-2">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">进场评级</span>
+                            <div class="flex bg-gray-800 p-0.5 rounded-lg text-[10px]">
+                                <button v-for="p in [['global','全局'],['day','当日'],['week','当周'],['month','当月']]" :key="p[0]"
+                                        type="button" @click="gradeStatsPeriod = p[0]"
+                                        class="px-2 py-1 rounded font-medium transition cursor-pointer"
+                                        :class="gradeStatsPeriod === p[0] ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'">
+                                    {{ p[1] }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div v-for="g in ['A','B','C']" :key="g" class="flex items-center gap-3 bg-gray-900 bg-opacity-40 rounded-lg px-3 py-2.5">
+                                <span class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm font-black shadow"
+                                      :class="g === 'A' ? 'bg-emerald-400 text-emerald-950' : (g === 'B' ? 'bg-amber-400 text-amber-950' : 'bg-orange-400 text-orange-950')">{{ g }}</span>
+                                <div class="flex-1 flex items-center justify-between">
+                                    <div>
+                                        <span class="block text-[9px] text-gray-500">胜率</span>
+                                        <span class="text-base font-bold text-white">{{ stats.grade[gradeStatsPeriod][g].winPct }}%</span>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="block text-[9px] text-gray-500">交易次数 · 占比</span>
+                                        <span class="text-sm font-semibold text-indigo-300">{{ stats.grade[gradeStatsPeriod][g].count }} 次 · {{ stats.grade[gradeStatsPeriod][g].entryPct }}%</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -620,6 +670,7 @@
                                     <th @click="toggleSort('date')" class="pb-2 cursor-pointer hover:text-gray-300 transition">日期 {{ renderSortIcon('date') }}</th>
                                     <th @click="toggleSort('ticker')" class="pb-2 cursor-pointer hover:text-gray-300 transition">{{ tableTab === 'trade' ? '股票代码 (Ticker)' : '渠道 / 备注' }} {{ renderSortIcon('ticker') }}</th>
                                     <th v-if="tableTab === 'trade'" class="pb-2">方向</th>
+                                    <th v-if="tableTab === 'trade'" class="pb-2 text-center">评级</th>
                                     <th v-if="tableTab === 'trade'" class="pb-2 pr-4 text-right">入场价</th>
                                     <th v-if="tableTab === 'trade'" class="pb-2 pr-4 text-right">止盈价</th>
                                     <th v-if="tableTab === 'trade'" class="pb-2 pr-4 text-right">止损价</th>
@@ -637,6 +688,11 @@
                                         <span v-if="item.direction" class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide" :class="item.direction === 'long' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'">{{ item.direction === 'long' ? '做多' : '做空' }}</span>
                                         <span v-else class="text-gray-600">-</span>
                                     </td>
+                                    <td v-if="tableTab === 'trade'" class="py-2 text-center">
+                                        <span v-if="item.grade" class="inline-flex w-5 h-5 items-center justify-center rounded-full text-[10px] font-black"
+                                              :class="item.grade === 'A' ? 'bg-emerald-400 text-emerald-950' : (item.grade === 'B' ? 'bg-amber-400 text-amber-950' : 'bg-orange-400 text-orange-950')">{{ item.grade }}</span>
+                                        <span v-else class="text-gray-600">-</span>
+                                    </td>
                                     <td v-if="tableTab === 'trade'" class="py-2 pr-4 text-right font-mono text-gray-400">{{ item.entryPrice !== undefined ? item.entryPrice.toFixed(2) : '-' }}</td>
                                     <td v-if="tableTab === 'trade'" class="py-2 pr-4 text-right font-mono text-green-400/80">{{ item.takeProfitPrice !== undefined ? item.takeProfitPrice.toFixed(2) : '-' }}</td>
                                     <td v-if="tableTab === 'trade'" class="py-2 pr-4 text-right font-mono text-red-400/80">{{ item.stopLossPrice !== undefined ? item.stopLossPrice.toFixed(2) : '-' }}</td>
@@ -648,7 +704,7 @@
                                     </td>
                                 </tr>
                                 <tr v-if="paginatedRecords.length === 0">
-                                    <td colspan="10" class="text-center py-6 text-gray-600">没有找到符合条件的记录</td>
+                                    <td colspan="11" class="text-center py-6 text-gray-600">没有找到符合条件的记录</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -690,6 +746,7 @@
                             <tr class="text-gray-500">
                                 <th class="text-left font-medium pb-1 px-2">代码</th>
                                 <th class="text-left font-medium pb-1 px-2">方向</th>
+                                <th class="text-center font-medium pb-1 px-2">评级</th>
                                 <th class="text-right font-medium pb-1 px-2">股数</th>
                                 <th class="text-right font-medium pb-1 px-2">入场价</th>
                                 <th class="text-right font-medium pb-1 px-2">止盈价</th>
@@ -702,6 +759,11 @@
                                 <td class="py-1.5 px-2 rounded-l font-mono font-bold text-white uppercase">{{ t.ticker || '-' }}</td>
                                 <td class="py-1.5 px-2">
                                     <span v-if="t.direction" class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide bg-black bg-opacity-25 text-white">{{ t.direction === 'long' ? '做多' : '做空' }}</span>
+                                    <span v-else class="text-white text-opacity-50">-</span>
+                                </td>
+                                <td class="py-1.5 px-2 text-center">
+                                    <span v-if="t.grade" class="inline-flex w-5 h-5 items-center justify-center rounded-full text-[10px] font-black"
+                                          :class="t.grade === 'A' ? 'bg-emerald-400 text-emerald-950' : (t.grade === 'B' ? 'bg-amber-400 text-amber-950' : 'bg-orange-400 text-orange-950')">{{ t.grade }}</span>
                                     <span v-else class="text-white text-opacity-50">-</span>
                                 </td>
                                 <td class="py-1.5 px-2 text-right text-white text-opacity-80 font-mono">{{ t.shares !== undefined ? t.shares : '-' }}</td>
@@ -1086,7 +1148,7 @@
                     return `${y}-${m}-${day}`;
                 };
 
-                const form = ref({ type: 'trade', date: toLocalDateStr(new Date()), ticker: '', amount: null, shares: null, direction: '', entryPrice: null, takeProfitPrice: null, stopLossPrice: null });
+                const form = ref({ type: 'trade', date: toLocalDateStr(new Date()), ticker: '', amount: null, shares: null, direction: '', entryPrice: null, takeProfitPrice: null, stopLossPrice: null, grade: '' });
                 const replayMode = ref(false);
                 const replayTicker = ref('');
 
@@ -1123,6 +1185,7 @@
                 const tableTab = ref('trade'); 
                 const searchQuery = ref('');
                 const dateFilter = ref('');
+                const gradeStatsPeriod = ref('month');
 
                 const sortKey = ref('seq'); 
                 const sortOrder = ref('desc');     
@@ -1316,6 +1379,9 @@
                         if (form.value.stopLossPrice !== null && form.value.stopLossPrice !== '' && !isNaN(form.value.stopLossPrice)) {
                             payload.stopLossPrice = parseFloat(form.value.stopLossPrice);
                         }
+                        if (form.value.grade === 'A' || form.value.grade === 'B' || form.value.grade === 'C') {
+                            payload.grade = form.value.grade;
+                        }
                     }
 
                     db.transact(db.tx.records[instantId()].update(payload));
@@ -1334,6 +1400,7 @@
                     form.value.entryPrice = null;
                     form.value.takeProfitPrice = null;
                     form.value.stopLossPrice = null;
+                    form.value.grade = '';
                 };
 
                 const setShortcutDate = (daysAgo) => {
@@ -1452,6 +1519,19 @@
                     const longMonth = computeTradeStats(monthlyTrades.filter(isLong));
                     const shortMonth = computeTradeStats(monthlyTrades.filter(isShort));
 
+                    // A/B/C entry-grade breakdown: win rate per grade, plus what % of
+                    // that period's trades were graded A vs B vs C. Ungraded trades
+                    // (older records, or the field left blank) are simply excluded.
+                    const gradeStatsFor = (list) => {
+                        const total = list.length;
+                        const pct = (n) => total ? ((n / total) * 100).toFixed(1) : '0.0';
+                        const build = (g) => {
+                            const s = computeTradeStats(list.filter(t => t.grade === g));
+                            return { winPct: s.winPct, count: s.count, entryPct: pct(s.count) };
+                        };
+                        return { A: build('A'), B: build('B'), C: build('C') };
+                    };
+
                     return {
                         netPnL, totalDeposits: totalDeposites,
                         tradeWinPct: global.winPct, dayWinPct: day.winPct, weeklyWinPct: week.winPct, monthlyWinPct: month.winPct,
@@ -1463,6 +1543,7 @@
                         dayTradeCount: day.count, weeklyTradeCount: week.count, monthlyTradeCount: month.count, globalTradeCount: global.count,
                         longWinPct: longGlobal.winPct, dayLongWinPct: longDay.winPct, weeklyLongWinPct: longWeek.winPct, monthlyLongWinPct: longMonth.winPct,
                         shortWinPct: shortGlobal.winPct, dayShortWinPct: shortDay.winPct, weeklyShortWinPct: shortWeek.winPct, monthlyShortWinPct: shortMonth.winPct,
+                        grade: { global: gradeStatsFor(tList), day: gradeStatsFor(todayTrades), week: gradeStatsFor(weeklyTrades), month: gradeStatsFor(monthlyTrades) },
                     };
                 });
 
@@ -1997,6 +2078,7 @@
                             type: r.type, date: r.date, ticker: r.ticker, amount: r.amount,
                             shares: r.shares ?? null, direction: r.direction ?? null,
                             entryPrice: r.entryPrice ?? null, takeProfitPrice: r.takeProfitPrice ?? null, stopLossPrice: r.stopLossPrice ?? null,
+                            grade: r.grade ?? null,
                         }))
                     };
                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupPackage));
@@ -2054,6 +2136,7 @@
                                 ...(r.entryPrice !== undefined && r.entryPrice !== null ? { entryPrice: parseFloat(r.entryPrice) } : {}),
                                 ...(r.takeProfitPrice !== undefined && r.takeProfitPrice !== null ? { takeProfitPrice: parseFloat(r.takeProfitPrice) } : {}),
                                 ...(r.stopLossPrice !== undefined && r.stopLossPrice !== null ? { stopLossPrice: parseFloat(r.stopLossPrice) } : {}),
+                                ...(r.grade ? { grade: r.grade } : {}),
                             }));
                             if (txs.length) await db.transact(txs);
 
@@ -2084,7 +2167,7 @@
                     isLoading, dbErrorMsg, connectionState,
                     authLoading, authUser, authError, loginEmail, loginSentEmail, loginCode, loginError, loginSending,
                     sendCode, verifyCode, logout,
-                    records, form, formError, selectedYearMonth, currentYear, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter,
+                    records, form, formError, selectedYearMonth, currentYear, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter, gradeStatsPeriod,
                     replayMode, replayTicker, toggleReplayMode, unlockReplayTicker, switchFormType,
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, importData,
