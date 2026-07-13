@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=36">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=36">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=37">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=37">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=36">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=37">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=36">
+    <link rel="manifest" href="manifest.json?v=37">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -754,9 +754,15 @@
                 <div class="overflow-y-auto px-5 py-4" style="-webkit-overflow-scrolling: touch; overscroll-behavior: contain;">
                     <div class="space-y-3 mb-3">
                         <div v-for="(cat, catIdx) in tradingRuleCategories" :key="catIdx" class="border border-gray-800 rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs font-bold text-white">{{ cat.name }}</span>
-                                <div class="flex items-center gap-1 flex-shrink-0">
+                            <div class="flex items-center justify-between mb-2 gap-2">
+                                <div v-if="editingCategoryIdx === catIdx" class="flex-1 flex items-center gap-1">
+                                    <input type="text" v-model="editingCategoryText" @keydown.enter="saveEditCategory(catIdx)" @keydown.esc="cancelEditCategory" autofocus
+                                           class="flex-1 bg-dark-input border border-indigo-500 rounded px-2 py-1 text-xs text-white focus:outline-none">
+                                    <button type="button" @click="saveEditCategory(catIdx)" class="w-6 h-6 flex items-center justify-center rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer text-[11px] flex-shrink-0">✓</button>
+                                    <button type="button" @click="cancelEditCategory" class="w-6 h-6 flex items-center justify-center rounded bg-gray-800 hover:bg-gray-700 text-gray-400 cursor-pointer text-[11px] flex-shrink-0">✕</button>
+                                </div>
+                                <span v-else @click="startEditCategory(catIdx)" class="text-xs font-bold text-white cursor-pointer hover:text-indigo-300" title="点击重命名">{{ cat.name }} ✏️</span>
+                                <div v-if="editingCategoryIdx !== catIdx" class="flex items-center gap-1 flex-shrink-0">
                                     <button type="button" @click="moveTradingCategory(catIdx, -1)" :disabled="catIdx === 0"
                                             class="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[9px] leading-none">▲</button>
                                     <button type="button" @click="moveTradingCategory(catIdx, 1)" :disabled="catIdx === tradingRuleCategories.length - 1"
@@ -767,16 +773,28 @@
                             </div>
 
                             <div class="space-y-1.5 mb-2">
-                                <div v-for="(rule, ruleIdx) in cat.rules" :key="ruleIdx" class="flex items-center gap-2 bg-gray-800 bg-opacity-50 rounded px-2.5 py-1.5">
-                                    <span class="text-[11px] font-bold text-indigo-400 flex-shrink-0">{{ ruleIdx + 1 }}.</span>
-                                    <span class="flex-1 text-[11px] text-gray-200 leading-relaxed whitespace-pre-wrap">{{ rule }}</span>
-                                    <div class="flex items-center gap-0.5 flex-shrink-0">
-                                        <button type="button" @click="moveTradingRule(catIdx, ruleIdx, -1)" :disabled="ruleIdx === 0"
-                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▲</button>
-                                        <button type="button" @click="moveTradingRule(catIdx, ruleIdx, 1)" :disabled="ruleIdx === cat.rules.length - 1"
-                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▼</button>
-                                        <button type="button" @click="removeTradingRule(catIdx, ruleIdx)"
-                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 cursor-pointer text-[10px] leading-none">✕</button>
+                                <div v-for="(rule, ruleIdx) in cat.rules" :key="ruleIdx" class="bg-gray-800 bg-opacity-50 rounded px-2.5 py-1.5">
+                                    <div v-if="editingRuleKey === catIdx + '-' + ruleIdx" class="flex items-center gap-1">
+                                        <textarea v-model="editingRuleText" @keydown.enter.exact.prevent="saveEditRule(catIdx, ruleIdx)" @keydown.esc="cancelEditRule" rows="2" autofocus
+                                                  class="flex-1 bg-dark-input border border-indigo-500 rounded px-2 py-1 text-[11px] text-white resize-none focus:outline-none"></textarea>
+                                        <div class="flex flex-col gap-1 flex-shrink-0">
+                                            <button type="button" @click="saveEditRule(catIdx, ruleIdx)" class="w-6 h-6 flex items-center justify-center rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer text-[11px]">✓</button>
+                                            <button type="button" @click="cancelEditRule" class="w-6 h-6 flex items-center justify-center rounded bg-gray-800 hover:bg-gray-700 text-gray-400 cursor-pointer text-[11px]">✕</button>
+                                        </div>
+                                    </div>
+                                    <div v-else class="flex items-center gap-2">
+                                        <span class="text-[11px] font-bold text-indigo-400 flex-shrink-0">{{ ruleIdx + 1 }}.</span>
+                                        <span class="flex-1 text-[11px] text-gray-200 leading-relaxed whitespace-pre-wrap">{{ rule }}</span>
+                                        <div class="flex items-center gap-0.5 flex-shrink-0">
+                                            <button type="button" @click="startEditRule(catIdx, ruleIdx)" title="编辑"
+                                                    class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-indigo-300 hover:bg-gray-700 cursor-pointer text-[9px] leading-none">✏️</button>
+                                            <button type="button" @click="moveTradingRule(catIdx, ruleIdx, -1)" :disabled="ruleIdx === 0"
+                                                    class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▲</button>
+                                            <button type="button" @click="moveTradingRule(catIdx, ruleIdx, 1)" :disabled="ruleIdx === cat.rules.length - 1"
+                                                    class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▼</button>
+                                            <button type="button" @click="removeTradingRule(catIdx, ruleIdx)"
+                                                    class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 cursor-pointer text-[10px] leading-none">✕</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <p v-if="cat.rules.length === 0" class="text-[11px] text-gray-600 text-center py-1.5">这个分类还没有规则</p>
@@ -1829,6 +1847,55 @@
                     saveTradingRules();
                 };
 
+                // --- Inline editing for existing rule text and category names ---
+                const editingRuleKey = ref(null); // `${catIdx}-${ruleIdx}` while editing, else null
+                const editingRuleText = ref('');
+                const editingCategoryIdx = ref(null); // catIdx while editing its name, else null
+                const editingCategoryText = ref('');
+
+                const startEditRule = (catIdx, ruleIdx) => {
+                    editingRuleKey.value = `${catIdx}-${ruleIdx}`;
+                    editingRuleText.value = tradingRuleCategories.value[catIdx].rules[ruleIdx];
+                };
+
+                const cancelEditRule = () => {
+                    editingRuleKey.value = null;
+                    editingRuleText.value = '';
+                };
+
+                const saveEditRule = (catIdx, ruleIdx) => {
+                    const text = editingRuleText.value.trim();
+                    if (!text) { cancelEditRule(); return; }
+                    const updated = tradingRuleCategories.value.map((cat, i) => {
+                        if (i !== catIdx) return cat;
+                        const rules = [...cat.rules];
+                        rules[ruleIdx] = text;
+                        return { ...cat, rules };
+                    });
+                    tradingRuleCategories.value = updated;
+                    saveTradingRules();
+                    cancelEditRule();
+                };
+
+                const startEditCategory = (catIdx) => {
+                    editingCategoryIdx.value = catIdx;
+                    editingCategoryText.value = tradingRuleCategories.value[catIdx].name;
+                };
+
+                const cancelEditCategory = () => {
+                    editingCategoryIdx.value = null;
+                    editingCategoryText.value = '';
+                };
+
+                const saveEditCategory = (catIdx) => {
+                    const name = editingCategoryText.value.trim();
+                    if (!name) { cancelEditCategory(); return; }
+                    const updated = tradingRuleCategories.value.map((cat, i) => (i === catIdx ? { ...cat, name } : cat));
+                    tradingRuleCategories.value = updated;
+                    saveTradingRules();
+                    cancelEditCategory();
+                };
+
                 const currentDayNoteId = ref(null); // existing dayNotes row id for this date, if any
                 const noteSaveStatus = ref('idle');  // idle | saving | saved
                 let noteSaveTimer = null;
@@ -2349,6 +2416,8 @@
                     tradingRuleCategories, newCategoryInput, ruleDraftByCategory, tradingRulesPanelOpen,
                     addTradingCategory, removeTradingCategory, moveTradingCategory,
                     addTradingRule, removeTradingRule, moveTradingRule,
+                    editingRuleKey, editingRuleText, startEditRule, saveEditRule, cancelEditRule,
+                    editingCategoryIdx, editingCategoryText, startEditCategory, saveEditCategory, cancelEditCategory,
                     currentAccount, shareUrl, shareBusy, shareLinkVisible, shareCurrentAccount, revokeShare, copyShareLink,
                     isShareView, readOnly, sharedLoading, sharedError, sharedAccount, sharedRecords,
                 };
