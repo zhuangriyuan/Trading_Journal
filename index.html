@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=32">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=32">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=36">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=36">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=32">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=36">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=32">
+    <link rel="manifest" href="manifest.json?v=36">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -206,13 +206,19 @@
 
                 <div class="w-px h-4 bg-gray-700"></div>
 
+                <button @click="tradingRulesPanelOpen = true" class="px-2.5 py-1 bg-indigo-900 bg-opacity-40 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
+                    📋 交易规则
+                </button>
+
+                <div class="w-px h-4 bg-gray-700"></div>
+
                 <button @click="logout" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-400 hover:text-gray-200 transition cursor-pointer">
                     退出登录
                 </button>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
             
             <div class="space-y-6 xl:col-span-1">
                 <div v-if="!readOnly" class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
@@ -492,7 +498,7 @@
                 </div>
             </div>
 
-            <div class="space-y-6" :class="readOnly ? 'xl:col-span-4' : 'xl:col-span-3'">
+            <div class="xl:col-span-3 space-y-6">
                 <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-3 mb-4">
                         <div class="flex items-center gap-2">
@@ -731,29 +737,64 @@
                 </div>
 
             </div>
+        </div>
 
-            <div v-if="!readOnly" class="xl:col-span-1 space-y-6">
-                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
-                    <h2 class="text-sm font-semibold text-gray-400 mb-1 tracking-wider uppercase">交易规则</h2>
-                    <p class="text-[10px] text-gray-600 mb-3">适用于所有账户 · 仅自己可见，不会出现在分享链接里</p>
+        <!-- Trading rules: slide-over panel (doesn't affect the main grid/calendar width) -->
+        <div v-if="tradingRulesPanelOpen" @click.self="tradingRulesPanelOpen = false" class="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-end"
+             style="padding: max(0px, env(safe-area-inset-top)) 0 max(0px, env(safe-area-inset-bottom));">
+            <div class="bg-dark-panel border-l border-gray-800 w-full max-w-md h-full shadow-2xl flex flex-col overflow-hidden">
+                <div class="flex justify-between items-center px-5 pt-5 pb-3 border-b border-gray-800 flex-shrink-0">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gray-400 tracking-wider uppercase">交易规则</h2>
+                        <p class="text-[10px] text-gray-600 mt-0.5">适用于所有账户 · 仅自己可见，不会出现在分享链接里</p>
+                    </div>
+                    <button @click="tradingRulesPanelOpen = false" class="text-gray-500 hover:text-gray-300 cursor-pointer text-lg leading-none w-8 h-8 flex items-center justify-center -mr-2 flex-shrink-0">✕</button>
+                </div>
 
-                    <div class="space-y-2 mb-3">
-                        <div v-for="(rule, idx) in tradingRules" :key="idx" class="flex items-start gap-2 bg-gray-800 bg-opacity-50 rounded-lg px-3 py-2">
-                            <span class="text-xs font-bold text-indigo-400 mt-0.5 flex-shrink-0">{{ idx + 1 }}.</span>
-                            <span class="flex-1 text-xs text-gray-200 leading-relaxed whitespace-pre-wrap">{{ rule }}</span>
-                            <div class="flex flex-col gap-0.5 flex-shrink-0">
-                                <button type="button" @click="moveTradingRule(idx, -1)" :disabled="idx === 0" class="text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px] leading-none">▲</button>
-                                <button type="button" @click="moveTradingRule(idx, 1)" :disabled="idx === tradingRules.length - 1" class="text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px] leading-none">▼</button>
+                <div class="overflow-y-auto px-5 py-4" style="-webkit-overflow-scrolling: touch; overscroll-behavior: contain;">
+                    <div class="space-y-3 mb-3">
+                        <div v-for="(cat, catIdx) in tradingRuleCategories" :key="catIdx" class="border border-gray-800 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold text-white">{{ cat.name }}</span>
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    <button type="button" @click="moveTradingCategory(catIdx, -1)" :disabled="catIdx === 0"
+                                            class="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[9px] leading-none">▲</button>
+                                    <button type="button" @click="moveTradingCategory(catIdx, 1)" :disabled="catIdx === tradingRuleCategories.length - 1"
+                                            class="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[9px] leading-none">▼</button>
+                                    <button type="button" @click="removeTradingCategory(catIdx)" title="删除整个分类"
+                                            class="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-red-400 hover:bg-gray-700 cursor-pointer text-[11px] leading-none">✕</button>
+                                </div>
                             </div>
-                            <button type="button" @click="removeTradingRule(idx)" class="text-gray-600 hover:text-red-400 cursor-pointer text-xs flex-shrink-0">✕</button>
+
+                            <div class="space-y-1.5 mb-2">
+                                <div v-for="(rule, ruleIdx) in cat.rules" :key="ruleIdx" class="flex items-center gap-2 bg-gray-800 bg-opacity-50 rounded px-2.5 py-1.5">
+                                    <span class="text-[11px] font-bold text-indigo-400 flex-shrink-0">{{ ruleIdx + 1 }}.</span>
+                                    <span class="flex-1 text-[11px] text-gray-200 leading-relaxed whitespace-pre-wrap">{{ rule }}</span>
+                                    <div class="flex items-center gap-0.5 flex-shrink-0">
+                                        <button type="button" @click="moveTradingRule(catIdx, ruleIdx, -1)" :disabled="ruleIdx === 0"
+                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▲</button>
+                                        <button type="button" @click="moveTradingRule(catIdx, ruleIdx, 1)" :disabled="ruleIdx === cat.rules.length - 1"
+                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[8px] leading-none">▼</button>
+                                        <button type="button" @click="removeTradingRule(catIdx, ruleIdx)"
+                                                class="w-4 h-4 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 cursor-pointer text-[10px] leading-none">✕</button>
+                                    </div>
+                                </div>
+                                <p v-if="cat.rules.length === 0" class="text-[11px] text-gray-600 text-center py-1.5">这个分类还没有规则</p>
+                            </div>
+
+                            <div class="flex gap-1.5">
+                                <input type="text" v-model="ruleDraftByCategory[catIdx]" @keydown.enter="addTradingRule(catIdx)" placeholder="给这个分类加一条规则..."
+                                       class="flex-1 bg-dark-input border border-gray-700 rounded px-2 py-1.5 text-[11px] text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500">
+                                <button type="button" @click="addTradingRule(catIdx)" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] rounded transition cursor-pointer whitespace-nowrap">添加</button>
+                            </div>
                         </div>
-                        <p v-if="tradingRules.length === 0" class="text-xs text-gray-600 text-center py-3">还没有规则，在下面加第一条</p>
+                        <p v-if="tradingRuleCategories.length === 0" class="text-xs text-gray-600 text-center py-3">还没有分类，在下面新建一个</p>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <textarea v-model="newRuleInput" @keydown.enter.exact.prevent="addTradingRule" rows="2" placeholder="写一条交易规则，例如：只在成交量放大时进场"
-                                  class="w-full bg-dark-input border border-gray-700 rounded px-2.5 py-2 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-indigo-500"></textarea>
-                        <button type="button" @click="addTradingRule" class="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded transition cursor-pointer">＋ 添加规则</button>
+                    <div class="flex gap-1.5 pt-2 border-t border-gray-800">
+                        <input type="text" v-model="newCategoryInput" @keydown.enter="addTradingCategory" placeholder="新建分类，例如：进场规则"
+                               class="flex-1 bg-dark-input border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500">
+                        <button type="button" @click="addTradingCategory" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition cursor-pointer whitespace-nowrap">＋ 新建分类</button>
                     </div>
                 </div>
             </div>
@@ -996,7 +1037,12 @@
                             if (settingsRow.tradingRules) {
                                 try {
                                     const parsed = JSON.parse(settingsRow.tradingRules);
-                                    tradingRules.value = Array.isArray(parsed) ? parsed : [];
+                                    if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
+                                        // Old format: flat array of rule strings. Migrate into one category.
+                                        tradingRuleCategories.value = [{ name: '未分类', rules: parsed }];
+                                    } else if (Array.isArray(parsed)) {
+                                        tradingRuleCategories.value = parsed;
+                                    }
                                 } catch (e) { /* leave as-is if malformed */ }
                             }
                         }
@@ -1708,10 +1754,16 @@
                     imgbbApiKeyPromptOpen.value = false;
                 };
 
-                // --- Trading rules: global per-user checklist, not per-account, not
-                // visible in the read-only share view (gated by v-if="!readOnly"). ---
-                const tradingRules = ref([]);
-                const newRuleInput = ref('');
+                // --- Trading rules: global per-user checklist grouped into categories,
+                // not per-account, not visible in the read-only share view (gated by
+                // v-if="!readOnly"). Stored as [{name, rules:[...]}, ...] in the same
+                // userSettings.tradingRules field as before; old flat string-array data
+                // (from before categories existed) is migrated into a single "未分类"
+                // category the first time it's loaded.
+                const tradingRuleCategories = ref([]);
+                const tradingRulesPanelOpen = ref(false);
+                const newCategoryInput = ref('');
+                const ruleDraftByCategory = ref({}); // { [categoryIndex]: draftText }
 
                 const saveTradingRules = () => {
                     if (!authUser.value) return;
@@ -1719,30 +1771,61 @@
                     userSettingsId.value = id;
                     db.transact(db.tx.userSettings[id].update({
                         ownerId: authUser.value.id,
-                        tradingRules: JSON.stringify(tradingRules.value),
+                        tradingRules: JSON.stringify(tradingRuleCategories.value),
                         updatedAt: Date.now(),
                     }));
                 };
 
-                const addTradingRule = () => {
-                    const text = newRuleInput.value.trim();
+                const addTradingCategory = () => {
+                    const name = newCategoryInput.value.trim();
+                    if (!name) return;
+                    tradingRuleCategories.value = [...tradingRuleCategories.value, { name, rules: [] }];
+                    newCategoryInput.value = '';
+                    saveTradingRules();
+                };
+
+                const removeTradingCategory = (catIdx) => {
+                    if (!confirm(`删除分类"${tradingRuleCategories.value[catIdx].name}"以及里面的所有规则？`)) return;
+                    tradingRuleCategories.value = tradingRuleCategories.value.filter((_, i) => i !== catIdx);
+                    saveTradingRules();
+                };
+
+                const moveTradingCategory = (catIdx, delta) => {
+                    const target = catIdx + delta;
+                    if (target < 0 || target >= tradingRuleCategories.value.length) return;
+                    const updated = [...tradingRuleCategories.value];
+                    [updated[catIdx], updated[target]] = [updated[target], updated[catIdx]];
+                    tradingRuleCategories.value = updated;
+                    saveTradingRules();
+                };
+
+                const addTradingRule = (catIdx) => {
+                    const text = (ruleDraftByCategory.value[catIdx] || '').trim();
                     if (!text) return;
-                    tradingRules.value = [...tradingRules.value, text];
-                    newRuleInput.value = '';
+                    const updated = tradingRuleCategories.value.map((cat, i) =>
+                        i === catIdx ? { ...cat, rules: [...cat.rules, text] } : cat
+                    );
+                    tradingRuleCategories.value = updated;
+                    ruleDraftByCategory.value[catIdx] = '';
                     saveTradingRules();
                 };
 
-                const removeTradingRule = (idx) => {
-                    tradingRules.value = tradingRules.value.filter((_, i) => i !== idx);
+                const removeTradingRule = (catIdx, ruleIdx) => {
+                    const updated = tradingRuleCategories.value.map((cat, i) =>
+                        i === catIdx ? { ...cat, rules: cat.rules.filter((_, ri) => ri !== ruleIdx) } : cat
+                    );
+                    tradingRuleCategories.value = updated;
                     saveTradingRules();
                 };
 
-                const moveTradingRule = (idx, delta) => {
-                    const target = idx + delta;
-                    if (target < 0 || target >= tradingRules.value.length) return;
-                    const updated = [...tradingRules.value];
-                    [updated[idx], updated[target]] = [updated[target], updated[idx]];
-                    tradingRules.value = updated;
+                const moveTradingRule = (catIdx, ruleIdx, delta) => {
+                    const cat = tradingRuleCategories.value[catIdx];
+                    const target = ruleIdx + delta;
+                    if (!cat || target < 0 || target >= cat.rules.length) return;
+                    const rules = [...cat.rules];
+                    [rules[ruleIdx], rules[target]] = [rules[target], rules[ruleIdx]];
+                    const updated = tradingRuleCategories.value.map((c, i) => (i === catIdx ? { ...c, rules } : c));
+                    tradingRuleCategories.value = updated;
                     saveTradingRules();
                 };
 
@@ -2083,8 +2166,8 @@
                 const initCharts = () => {
                     const barEl = document.getElementById('dailyBarChart');
                     const lineEl = document.getElementById('cumLineChart');
-                    const depEl = document.getElementById('depositBarChart');
-                    if (!barEl || !lineEl || !depEl) return; // canvases not mounted yet (e.g. not logged in)
+                    const depEl = document.getElementById('depositBarChart'); // hidden entirely in the read-only share view
+                    if (!barEl || !lineEl) return; // canvases not mounted yet (e.g. not logged in)
 
                     // Destroy any previous instances (e.g. after logout/login) before recreating.
                     if (dailyBarChart) { dailyBarChart.destroy(); dailyBarChart = null; }
@@ -2105,18 +2188,20 @@
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
                     });
 
-                    const ctxDep = depEl.getContext('2d');
-                    depositBarChart = new Chart(ctxDep, {
-                        type: 'bar',
-                        data: { labels: [], datasets: [{ data: [], backgroundColor: '#10b981' }] },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
-                    });
+                    if (depEl) {
+                        const ctxDep = depEl.getContext('2d');
+                        depositBarChart = new Chart(ctxDep, {
+                            type: 'bar',
+                            data: { labels: [], datasets: [{ data: [], backgroundColor: '#10b981' }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                        });
+                    }
 
                     setTimeout(() => { updateCharts(); }, 100);
                 };
 
                 const updateCharts = () => {
-                    if (!dailyBarChart || !cumLineChart || !depositBarChart) return;
+                    if (!dailyBarChart || !cumLineChart) return;
                     
                     const dayTradeMap = {};
                     const dayDepositMap = {};
@@ -2142,11 +2227,13 @@
                     cumLineChart.data.datasets[0].data = pnlLineValues;
                     cumLineChart.update();
 
-                    const depositDatesOnly = Object.keys(dayDepositMap).sort((a,b) => new Date(a) - new Date(b));
-                    const dailyDepositValues = depositDatesOnly.map(d => dayDepositMap[d]);
-                    depositBarChart.data.labels = depositDatesOnly;
-                    depositBarChart.data.datasets[0].data = dailyDepositValues;
-                    depositBarChart.update();
+                    if (depositBarChart) {
+                        const depositDatesOnly = Object.keys(dayDepositMap).sort((a,b) => new Date(a) - new Date(b));
+                        const dailyDepositValues = depositDatesOnly.map(d => dayDepositMap[d]);
+                        depositBarChart.data.labels = depositDatesOnly;
+                        depositBarChart.data.datasets[0].data = dailyDepositValues;
+                        depositBarChart.update();
+                    }
                 };
 
                 const currentAccountName = computed(() => (currentAccount.value ? currentAccount.value.name : ''));
@@ -2259,7 +2346,9 @@
                     imageFileInputEl, imageUploading, imageUploadError, handleImageFileSelect, captureScreenshot,
                     cropModalOpen, cropImageUrl, cropImgEl, cropSelection, startCropDrag, moveCropDrag, endCropDrag, cancelCrop, retakeScreenshot, confirmCrop,
                     imgbbApiKey, imgbbApiKeyInput, imgbbApiKeyPromptOpen, saveImgbbApiKey,
-                    tradingRules, newRuleInput, addTradingRule, removeTradingRule, moveTradingRule,
+                    tradingRuleCategories, newCategoryInput, ruleDraftByCategory, tradingRulesPanelOpen,
+                    addTradingCategory, removeTradingCategory, moveTradingCategory,
+                    addTradingRule, removeTradingRule, moveTradingRule,
                     currentAccount, shareUrl, shareBusy, shareLinkVisible, shareCurrentAccount, revokeShare, copyShareLink,
                     isShareView, readOnly, sharedLoading, sharedError, sharedAccount, sharedRecords,
                 };

@@ -176,3 +176,5 @@
 - 字段：`userSettings.tradingRules`（string，非必填——存的是规则文字数组序列化后的 JSON 文本，跟笔记图片的存法一样）
 
 如果你已经按前面步骤建过 `userSettings` 表（用来存 ImgBB Key），这次只需要**再加一个字段**：`tradingRules`（string，非必填）。同样可以用"改 attrs 为 true → 加一条规则 → 改回 false"的方法，或者去 Explorer 手动加。
+
+（后续更新：交易规则现在支持分类了，存储的 JSON 结构从"文字数组"变成"分类数组"，字段名和类型都没变，还是同一个 `tradingRules` 字符串字段，不需要重新建字段。旧数据会在第一次加载时自动归到一个"未分类"分类下，不会丢。）
