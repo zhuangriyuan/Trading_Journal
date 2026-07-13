@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=31">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=31">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=32">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=32">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=31">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=32">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=31">
+    <link rel="manifest" href="manifest.json?v=32">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -212,7 +212,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
             
             <div class="space-y-6 xl:col-span-1">
                 <div v-if="!readOnly" class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
@@ -492,7 +492,7 @@
                 </div>
             </div>
 
-            <div class="xl:col-span-3 space-y-6">
+            <div class="space-y-6" :class="readOnly ? 'xl:col-span-4' : 'xl:col-span-3'">
                 <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-3 mb-4">
                         <div class="flex items-center gap-2">
@@ -731,6 +731,32 @@
                 </div>
 
             </div>
+
+            <div v-if="!readOnly" class="xl:col-span-1 space-y-6">
+                <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
+                    <h2 class="text-sm font-semibold text-gray-400 mb-1 tracking-wider uppercase">交易规则</h2>
+                    <p class="text-[10px] text-gray-600 mb-3">适用于所有账户 · 仅自己可见，不会出现在分享链接里</p>
+
+                    <div class="space-y-2 mb-3">
+                        <div v-for="(rule, idx) in tradingRules" :key="idx" class="flex items-start gap-2 bg-gray-800 bg-opacity-50 rounded-lg px-3 py-2">
+                            <span class="text-xs font-bold text-indigo-400 mt-0.5 flex-shrink-0">{{ idx + 1 }}.</span>
+                            <span class="flex-1 text-xs text-gray-200 leading-relaxed whitespace-pre-wrap">{{ rule }}</span>
+                            <div class="flex flex-col gap-0.5 flex-shrink-0">
+                                <button type="button" @click="moveTradingRule(idx, -1)" :disabled="idx === 0" class="text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px] leading-none">▲</button>
+                                <button type="button" @click="moveTradingRule(idx, 1)" :disabled="idx === tradingRules.length - 1" class="text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer text-[10px] leading-none">▼</button>
+                            </div>
+                            <button type="button" @click="removeTradingRule(idx)" class="text-gray-600 hover:text-red-400 cursor-pointer text-xs flex-shrink-0">✕</button>
+                        </div>
+                        <p v-if="tradingRules.length === 0" class="text-xs text-gray-600 text-center py-3">还没有规则，在下面加第一条</p>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <textarea v-model="newRuleInput" @keydown.enter.exact.prevent="addTradingRule" rows="2" placeholder="写一条交易规则，例如：只在成交量放大时进场"
+                                  class="w-full bg-dark-input border border-gray-700 rounded px-2.5 py-2 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-indigo-500"></textarea>
+                        <button type="button" @click="addTradingRule" class="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded transition cursor-pointer">＋ 添加规则</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div v-if="selectedDayDetail" @click.self="closeDayDetail" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]"
@@ -966,6 +992,12 @@
                             if (settingsRow.imgbbApiKey && !imgbbApiKeyPromptOpen.value) {
                                 imgbbApiKey.value = settingsRow.imgbbApiKey;
                                 imgbbApiKeyInput.value = settingsRow.imgbbApiKey;
+                            }
+                            if (settingsRow.tradingRules) {
+                                try {
+                                    const parsed = JSON.parse(settingsRow.tradingRules);
+                                    tradingRules.value = Array.isArray(parsed) ? parsed : [];
+                                } catch (e) { /* leave as-is if malformed */ }
                             }
                         }
 
@@ -1675,6 +1707,45 @@
                     }
                     imgbbApiKeyPromptOpen.value = false;
                 };
+
+                // --- Trading rules: global per-user checklist, not per-account, not
+                // visible in the read-only share view (gated by v-if="!readOnly"). ---
+                const tradingRules = ref([]);
+                const newRuleInput = ref('');
+
+                const saveTradingRules = () => {
+                    if (!authUser.value) return;
+                    const id = userSettingsId.value || instantId();
+                    userSettingsId.value = id;
+                    db.transact(db.tx.userSettings[id].update({
+                        ownerId: authUser.value.id,
+                        tradingRules: JSON.stringify(tradingRules.value),
+                        updatedAt: Date.now(),
+                    }));
+                };
+
+                const addTradingRule = () => {
+                    const text = newRuleInput.value.trim();
+                    if (!text) return;
+                    tradingRules.value = [...tradingRules.value, text];
+                    newRuleInput.value = '';
+                    saveTradingRules();
+                };
+
+                const removeTradingRule = (idx) => {
+                    tradingRules.value = tradingRules.value.filter((_, i) => i !== idx);
+                    saveTradingRules();
+                };
+
+                const moveTradingRule = (idx, delta) => {
+                    const target = idx + delta;
+                    if (target < 0 || target >= tradingRules.value.length) return;
+                    const updated = [...tradingRules.value];
+                    [updated[idx], updated[target]] = [updated[target], updated[idx]];
+                    tradingRules.value = updated;
+                    saveTradingRules();
+                };
+
                 const currentDayNoteId = ref(null); // existing dayNotes row id for this date, if any
                 const noteSaveStatus = ref('idle');  // idle | saving | saved
                 let noteSaveTimer = null;
@@ -2188,6 +2259,7 @@
                     imageFileInputEl, imageUploading, imageUploadError, handleImageFileSelect, captureScreenshot,
                     cropModalOpen, cropImageUrl, cropImgEl, cropSelection, startCropDrag, moveCropDrag, endCropDrag, cancelCrop, retakeScreenshot, confirmCrop,
                     imgbbApiKey, imgbbApiKeyInput, imgbbApiKeyPromptOpen, saveImgbbApiKey,
+                    tradingRules, newRuleInput, addTradingRule, removeTradingRule, moveTradingRule,
                     currentAccount, shareUrl, shareBusy, shareLinkVisible, shareCurrentAccount, revokeShare, copyShareLink,
                     isShareView, readOnly, sharedLoading, sharedError, sharedAccount, sharedRecords,
                 };

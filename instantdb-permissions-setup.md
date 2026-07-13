@@ -160,3 +160,19 @@
 ```
 
 这张表只有你自己能看，不参与"只读分享"（别人打开你的分享链接看不到、也不需要用到这个 Key）。同样要走一遍"快速建表步骤"（改 attrs 为 true → 在"上传设置"里保存一次 Key → 改回 false，或者去 Explorer 手动建）。
+
+## 进场评级（records.grade）
+
+新增了一个可选字段，不需要改权限规则（`records` 表本来就有），只是多了个新字段：
+
+- `records.grade`（string，非必填，取值 "A"/"B"/"C"）
+
+老规矩：第一次用之前，要么去 Explorer 手动建这个字段，要么用"改 attrs 为 true → 保存一笔带评级的交易 → 改回 false"的方法。
+
+## 交易规则（userSettings.tradingRules）
+
+最右侧新增的"交易规则"面板，跟 ImgBB API Key 一样存在 `userSettings` 表里（同一张表，只是多一个字段），不区分账户，登录后所有账户共用同一份规则列表，不会出现在只读分享链接里。
+
+- 字段：`userSettings.tradingRules`（string，非必填——存的是规则文字数组序列化后的 JSON 文本，跟笔记图片的存法一样）
+
+如果你已经按前面步骤建过 `userSettings` 表（用来存 ImgBB Key），这次只需要**再加一个字段**：`tradingRules`（string，非必填）。同样可以用"改 attrs 为 true → 加一条规则 → 改回 false"的方法，或者去 Explorer 手动加。
