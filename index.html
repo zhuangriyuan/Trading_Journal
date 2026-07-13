@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=30">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=30">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=31">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=31">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=30">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=31">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=30">
+    <link rel="manifest" href="manifest.json?v=31">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -463,18 +463,28 @@
                             </div>
                         </div>
                         <div class="space-y-2">
-                            <div v-for="g in ['A','B','C']" :key="g" class="flex items-center gap-3 bg-gray-900 bg-opacity-40 rounded-lg px-3 py-2.5">
-                                <span class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm font-black shadow"
-                                      :class="g === 'A' ? 'bg-emerald-400 text-emerald-950' : (g === 'B' ? 'bg-amber-400 text-amber-950' : 'bg-orange-400 text-orange-950')">{{ g }}</span>
-                                <div class="flex-1 flex items-center justify-between">
-                                    <div>
-                                        <span class="block text-[9px] text-gray-500">胜率</span>
-                                        <span class="text-base font-bold text-white">{{ stats.grade[gradeStatsPeriod][g].winPct }}%</span>
+                            <div v-for="g in ['A','B','C']" :key="g" class="bg-gray-900 bg-opacity-40 rounded-lg px-3 py-2.5">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm font-black shadow"
+                                          :class="g === 'A' ? 'bg-emerald-400 text-emerald-950' : (g === 'B' ? 'bg-amber-400 text-amber-950' : 'bg-orange-400 text-orange-950')">{{ g }}</span>
+                                    <div class="flex-1 flex items-center justify-between">
+                                        <div>
+                                            <span class="block text-[9px] text-gray-500">胜率</span>
+                                            <span class="text-base font-bold text-white">{{ stats.grade[gradeStatsPeriod][g].winPct }}%</span>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="block text-[9px] text-gray-500">交易次数 · 占比</span>
+                                            <span class="text-sm font-semibold text-indigo-300">{{ stats.grade[gradeStatsPeriod][g].count }} 次 · {{ stats.grade[gradeStatsPeriod][g].entryPct }}%</span>
+                                        </div>
                                     </div>
-                                    <div class="text-right">
-                                        <span class="block text-[9px] text-gray-500">交易次数 · 占比</span>
-                                        <span class="text-sm font-semibold text-indigo-300">{{ stats.grade[gradeStatsPeriod][g].count }} 次 · {{ stats.grade[gradeStatsPeriod][g].entryPct }}%</span>
-                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-800/60 pl-11">
+                                    <span class="text-[9px] text-gray-500">Avg Win / Loss</span>
+                                    <span class="text-xs font-semibold">
+                                        <span class="text-green-400">+{{ stats.grade[gradeStatsPeriod][g].avgWin.toFixed(2) }}</span>
+                                        <span class="text-gray-600 mx-0.5">/</span>
+                                        <span class="text-red-400">{{ stats.grade[gradeStatsPeriod][g].avgLoss.toFixed(2) }}</span>
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1527,7 +1537,7 @@
                         const pct = (n) => total ? ((n / total) * 100).toFixed(1) : '0.0';
                         const build = (g) => {
                             const s = computeTradeStats(list.filter(t => t.grade === g));
-                            return { winPct: s.winPct, count: s.count, entryPct: pct(s.count) };
+                            return { winPct: s.winPct, count: s.count, entryPct: pct(s.count), avgWin: s.avgWin, avgLoss: s.avgLoss };
                         };
                         return { A: build('A'), B: build('B'), C: build('C') };
                     };
