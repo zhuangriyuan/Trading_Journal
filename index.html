@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=37">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=37">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=40">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=40">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=37">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=40">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=37">
+    <link rel="manifest" href="manifest.json?v=40">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -2249,10 +2249,48 @@
                     });
 
                     const ctxLine = lineEl.getContext('2d');
+                    // Builds a vertical gradient with a hard color-stop exactly at the
+                    // pixel row where y=0 sits, so a line segment that crosses zero
+                    // switches color right at the crossing point instead of being
+                    // uniformly colored by whichever endpoint it's near.
+                    const makeZeroSplitGradient = (chart, topColor, bottomColor) => {
+                        const { ctx, chartArea, scales } = chart;
+                        if (!chartArea) return topColor; // not laid out yet
+                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                        const zeroPixel = scales.y.getPixelForValue(0);
+                        const ratio = Math.min(Math.max((zeroPixel - chartArea.top) / (chartArea.bottom - chartArea.top), 0), 1);
+                        gradient.addColorStop(0, topColor);
+                        gradient.addColorStop(ratio, topColor);
+                        if (ratio < 1) gradient.addColorStop(ratio, bottomColor);
+                        gradient.addColorStop(1, bottomColor);
+                        return gradient;
+                    };
+
                     cumLineChart = new Chart(ctxLine, {
                         type: 'line',
-                        data: { labels: [], datasets: [{ label: '交易累计盈亏', data: [], borderColor: '#6366f1', borderWidth: 2, tensor: 0.1, fill: false, pointRadius: 2 }] },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } }, y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                        data: { labels: [], datasets: [{
+                            label: '交易累计盈亏',
+                            data: [],
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: 'origin',
+                            pointRadius: 4,
+                            pointHoverRadius: 7,
+                            pointHitRadius: 12,
+                            borderColor: (ctx) => makeZeroSplitGradient(ctx.chart, '#10b981', '#ef4444'),
+                            backgroundColor: (ctx) => makeZeroSplitGradient(ctx.chart, 'rgba(16,185,129,0.15)', 'rgba(239,68,68,0.15)'),
+                            pointBackgroundColor: (ctx) => (ctx.parsed && ctx.parsed.y >= 0 ? '#10b981' : '#ef4444'),
+                            pointBorderColor: (ctx) => (ctx.parsed && ctx.parsed.y >= 0 ? '#10b981' : '#ef4444'),
+                        }] },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 10 } } },
+                                y: { grid: { color: (ctx) => ctx.tick.value === 0 ? '#6b7280' : '#1f2937' }, ticks: { color: '#9ca3af', font: { size: 10 } } }
+                            }
+                        }
                     });
 
                     if (depEl) {
