@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=45">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=45">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=46">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=46">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=45">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=46">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=45">
+    <link rel="manifest" href="manifest.json?v=46">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -541,7 +541,7 @@
             <div class="xl:col-span-3 space-y-6">
                 <div class="bg-dark-panel border border-gray-800 rounded-xl p-5 shadow-xl">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-3 mb-4">
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <template v-if="viewMode === 'month'">
                                 <button @click="prevMonth" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">◀</button>
                                 <input type="month" v-model="selectedYearMonth" class="bg-gray-800 border border-gray-700 rounded px-2.5 py-1 text-xs text-white font-medium focus:outline-none cursor-pointer focus:border-indigo-500 text-center tracking-wide">
@@ -552,14 +552,14 @@
                                 <span class="bg-gray-800 border border-gray-700 rounded px-4 py-1 text-xs text-white font-bold tracking-wider">{{ currentYear }} 年</span>
                                 <button @click="currentYear++" class="p-1.5 bg-gray-800 hover:bg-gray-700 text-xs rounded px-2.5 transition cursor-pointer">▶</button>
                             </template>
-                            <button @click="toggleViewMode" class="ml-2 px-3 py-1 bg-indigo-900 bg-opacity-40 text-indigo-300 hover:bg-indigo-900 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
+                            <button @click="toggleViewMode" class="sm:ml-2 px-3 py-1 bg-indigo-900 bg-opacity-40 text-indigo-300 hover:bg-indigo-900 border border-indigo-700/50 text-xs rounded transition cursor-pointer whitespace-nowrap">
                                 {{ viewMode === 'month' ? '📅 切换年视图' : '🗓️ 返回月视图' }}
                             </button>
                             <div v-if="!readOnly && viewMode === 'month'" class="relative">
                                 <button @click="bulkLocationPanelOpen = !bulkLocationPanelOpen" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-xs rounded transition cursor-pointer whitespace-nowrap">
                                     🏠🏢 批量设置
                                 </button>
-                                <div v-if="bulkLocationPanelOpen" class="absolute z-50 top-full left-0 mt-2 w-80 bg-black text-gray-200 text-xs p-3 rounded-lg shadow-2xl border border-gray-800 space-y-2.5">
+                                <div v-if="bulkLocationPanelOpen" class="absolute z-50 top-full left-0 mt-2 w-80 max-w-[90vw] bg-black text-gray-200 text-xs p-3 rounded-lg shadow-2xl border border-gray-800 space-y-2.5">
                                     <p class="text-[10px] text-gray-500 leading-relaxed">
                                         按"周几"批量标记 {{ currentYear }}年{{ currentMonth + 1 }}月 的工作地点，同一个周几只能选一边。标错的某天还是可以点进日历单独改。
                                     </p>
