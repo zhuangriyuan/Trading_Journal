@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=40">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=40">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=45">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=45">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=40">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=45">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=40">
+    <link rel="manifest" href="manifest.json?v=45">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -495,6 +495,46 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="relative group border-t border-gray-800 pt-3 col-span-2">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-400">🏠 WFH vs 🏢 Office</span>
+                            <div class="flex bg-gray-800 p-0.5 rounded-lg text-[10px]">
+                                <button v-for="p in [['global','全局'],['week','当周'],['month','当月']]" :key="p[0]"
+                                        type="button" @click="workLocationStatsPeriod = p[0]"
+                                        class="px-2 py-1 rounded font-medium transition cursor-pointer"
+                                        :class="workLocationStatsPeriod === p[0] ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'">
+                                    {{ p[1] }}
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="stats.workLocation.global.wfh.totalDays === 0 && stats.workLocation.global.office.totalDays === 0" class="text-[11px] text-gray-600 text-center py-2">
+                            还没有标记过工作地点，点开某天的详情弹窗可以标记
+                        </p>
+                        <div v-else class="space-y-2">
+                            <div v-for="loc in [['wfh','🏠 WFH','text-indigo-300'],['office','🏢 Office','text-amber-300']]" :key="loc[0]" class="bg-gray-900 bg-opacity-40 rounded-lg px-3 py-2.5">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-black shadow bg-gray-800" :class="loc[2]">{{ loc[0] === 'wfh' ? '🏠' : '🏢' }}</span>
+                                    <div class="flex-1 flex items-center justify-between">
+                                        <div>
+                                            <span class="block text-[9px] text-gray-500">胜率（赚钱天数）</span>
+                                            <span class="text-base font-bold text-white">{{ stats.workLocation[workLocationStatsPeriod][loc[0]].dayWinPct }}%</span>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="block text-[9px] text-gray-500">赚钱天数 / 总天数</span>
+                                            <span class="text-sm font-semibold" :class="loc[2]">{{ stats.workLocation[workLocationStatsPeriod][loc[0]].winDays }} / {{ stats.workLocation[workLocationStatsPeriod][loc[0]].totalDays }} 天</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-800/60 pl-11">
+                                    <span class="text-[9px] text-gray-500">累计盈亏</span>
+                                    <span class="text-xs font-semibold" :class="stats.workLocation[workLocationStatsPeriod][loc[0]].totalPnl >= 0 ? 'text-green-400' : 'text-red-400'">
+                                        {{ stats.workLocation[workLocationStatsPeriod][loc[0]].totalPnl >= 0 ? '+' : '' }}{{ stats.workLocation[workLocationStatsPeriod][loc[0]].totalPnl.toFixed(2) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -515,6 +555,40 @@
                             <button @click="toggleViewMode" class="ml-2 px-3 py-1 bg-indigo-900 bg-opacity-40 text-indigo-300 hover:bg-indigo-900 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
                                 {{ viewMode === 'month' ? '📅 切换年视图' : '🗓️ 返回月视图' }}
                             </button>
+                            <div v-if="!readOnly && viewMode === 'month'" class="relative">
+                                <button @click="bulkLocationPanelOpen = !bulkLocationPanelOpen" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 text-xs rounded transition cursor-pointer whitespace-nowrap">
+                                    🏠🏢 批量设置
+                                </button>
+                                <div v-if="bulkLocationPanelOpen" class="absolute z-50 top-full left-0 mt-2 w-80 bg-black text-gray-200 text-xs p-3 rounded-lg shadow-2xl border border-gray-800 space-y-2.5">
+                                    <p class="text-[10px] text-gray-500 leading-relaxed">
+                                        按"周几"批量标记 {{ currentYear }}年{{ currentMonth + 1 }}月 的工作地点，同一个周几只能选一边。标错的某天还是可以点进日历单独改。
+                                    </p>
+                                    <div>
+                                        <label class="text-[10px] text-indigo-300 block mb-1">🏠 WFH</label>
+                                        <div class="flex gap-1">
+                                            <button v-for="wd in [[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']]" :key="'wfh'+wd[0]"
+                                                    type="button" @click="toggleBulkWeekday('wfh', wd[0])"
+                                                    class="flex-1 py-1.5 rounded text-[11px] font-medium transition cursor-pointer"
+                                                    :class="bulkWfhWeekdays.includes(wd[0]) ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'">
+                                                {{ wd[1] }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-amber-300 block mb-1">🏢 Office</label>
+                                        <div class="flex gap-1">
+                                            <button v-for="wd in [[1,'一'],[2,'二'],[3,'三'],[4,'四'],[5,'五'],[6,'六'],[0,'日']]" :key="'office'+wd[0]"
+                                                    type="button" @click="toggleBulkWeekday('office', wd[0])"
+                                                    class="flex-1 py-1.5 rounded text-[11px] font-medium transition cursor-pointer"
+                                                    :class="bulkOfficeWeekdays.includes(wd[0]) ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'">
+                                                {{ wd[1] }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p v-if="bulkLocationError" class="text-[10px] text-red-400">{{ bulkLocationError }}</p>
+                                    <button type="button" @click="applyBulkWorkLocation" class="w-full px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition cursor-pointer">应用到 {{ currentMonth + 1 }} 月</button>
+                                </div>
+                            </div>
                         </div>
                         <div v-if="viewMode === 'month'" class="text-xs text-gray-400 flex items-center gap-4 bg-gray-900 bg-opacity-40 px-3 py-1.5 rounded-lg border border-gray-800/60">
                             <div>Monthly stats: <span class="font-bold ml-1" :class="monthlySummary.pnl >= 0 ? 'text-green-400' : 'text-red-400'">{{ monthlySummary.pnl >= 0 ? '+' : '' }}{{ monthlySummary.pnl.toFixed(2) }}</span></div>
@@ -636,6 +710,18 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500">图表时间范围</span>
+                    <div class="flex bg-gray-800 p-0.5 rounded-lg text-[11px]">
+                        <button v-for="r in [['30d','30天'],['90d','90天'],['year','今年'],['all','全部']]" :key="r[0]"
+                                type="button" @click="chartRangeFilter = r[0]"
+                                class="px-2.5 py-1 rounded font-medium transition cursor-pointer"
+                                :class="chartRangeFilter === r[0] ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-gray-200'">
+                            {{ r[1] }}
+                        </button>
                     </div>
                 </div>
 
@@ -832,6 +918,26 @@
                     <span>共 <strong class="text-white">{{ selectedDayDetail.trades.length }}</strong> 笔交易</span>
                     <span class="font-bold" :class="dayDetailPnl(selectedDayDetail) >= 0 ? 'text-green-400' : 'text-red-400'">
                         合计 {{ formatCurrency(dayDetailPnl(selectedDayDetail)) }}
+                    </span>
+                </div>
+
+                <div v-if="!readOnly" class="flex items-center gap-2 mb-3">
+                    <span class="text-[10px] text-gray-500">当天在哪工作：</span>
+                    <button type="button" @click="setWorkLocation('wfh')"
+                            class="text-[11px] px-2.5 py-1 rounded-full font-medium transition cursor-pointer border"
+                            :class="currentDayWorkLocation === 'wfh' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-gray-800 text-gray-400 border-transparent hover:border-gray-600'">
+                        🏠 在家 WFH
+                    </button>
+                    <button type="button" @click="setWorkLocation('office')"
+                            class="text-[11px] px-2.5 py-1 rounded-full font-medium transition cursor-pointer border"
+                            :class="currentDayWorkLocation === 'office' ? 'bg-amber-600 text-white border-amber-400' : 'bg-gray-800 text-gray-400 border-transparent hover:border-gray-600'">
+                        🏢 在公司 Office
+                    </button>
+                    <button v-if="currentDayWorkLocation" type="button" @click="setWorkLocation(null)" class="text-[10px] text-gray-600 hover:text-gray-400 cursor-pointer">清除</button>
+                </div>
+                <div v-else-if="currentDayWorkLocation" class="flex items-center gap-2 mb-3">
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-medium" :class="currentDayWorkLocation === 'wfh' ? 'bg-indigo-600 text-white' : 'bg-amber-600 text-white'">
+                        {{ currentDayWorkLocation === 'wfh' ? '🏠 在家 WFH' : '🏢 在公司 Office' }}
                     </span>
                 </div>
 
@@ -1292,6 +1398,7 @@
                 const searchQuery = ref('');
                 const dateFilter = ref('');
                 const gradeStatsPeriod = ref('month');
+                const workLocationStatsPeriod = ref('month');
 
                 const sortKey = ref('seq'); 
                 const sortOrder = ref('desc');     
@@ -1311,6 +1418,8 @@
                 let dailyBarChart = null;
                 let cumLineChart = null;
                 let depositBarChart = null;
+                const chartRangeFilter = ref('90d'); // '30d' | '90d' | 'year' | 'all'
+                watch(chartRangeFilter, () => updateCharts());
 
                 // Whenever the current account's records change (from any device), refresh charts.
                 watch(records, () => {
@@ -1638,6 +1747,31 @@
                         return { A: build('A'), B: build('B'), C: build('C') };
                     };
 
+                    // WFH vs Office comparison: work location is tagged per DAY (in
+                    // dayNotes.workLocation). Compare at the day level — "how many of
+                    // the WFH days were net-profitable" and "total P&L on WFH days" —
+                    // rather than per-trade, since the tag itself is a daily thing.
+                    const workLocationByDate = {};
+                    dayNotesForAccount.value.forEach(n => { if (n.workLocation) workLocationByDate[n.date] = n.workLocation; });
+
+                    const workLocationDayStatsFor = (dateInRange) => {
+                        const wfhDays = [], officeDays = [];
+                        Object.keys(dailyMergedMap.value).forEach(d => {
+                            const day = dailyMergedMap.value[d];
+                            if (!day.hasTradeData || !dateInRange(d)) return;
+                            const loc = workLocationByDate[d];
+                            if (loc === 'wfh') wfhDays.push(day);
+                            else if (loc === 'office') officeDays.push(day);
+                        });
+                        const summarize = (days) => {
+                            const totalDays = days.length;
+                            const winDays = days.filter(d => d.pnl > 0).length;
+                            const totalPnl = days.reduce((acc, d) => acc + d.pnl, 0);
+                            return { totalDays, winDays, dayWinPct: totalDays ? ((winDays / totalDays) * 100).toFixed(1) : '0.0', totalPnl };
+                        };
+                        return { wfh: summarize(wfhDays), office: summarize(officeDays) };
+                    };
+
                     return {
                         netPnL, totalDeposits: totalDeposites,
                         tradeWinPct: global.winPct, dayWinPct: day.winPct, weeklyWinPct: week.winPct, monthlyWinPct: month.winPct,
@@ -1650,6 +1784,11 @@
                         longWinPct: longGlobal.winPct, dayLongWinPct: longDay.winPct, weeklyLongWinPct: longWeek.winPct, monthlyLongWinPct: longMonth.winPct,
                         shortWinPct: shortGlobal.winPct, dayShortWinPct: shortDay.winPct, weeklyShortWinPct: shortWeek.winPct, monthlyShortWinPct: shortMonth.winPct,
                         grade: { global: gradeStatsFor(tList), day: gradeStatsFor(todayTrades), week: gradeStatsFor(weeklyTrades), month: gradeStatsFor(monthlyTrades) },
+                        workLocation: {
+                            global: workLocationDayStatsFor(() => true),
+                            week: workLocationDayStatsFor(d => d >= startOfWeekStr && d <= endOfWeekStr),
+                            month: workLocationDayStatsFor(d => d.startsWith(targetYearMonth)),
+                        },
                     };
                 });
 
@@ -1982,6 +2121,82 @@
                     const note = dayNotesForAccount.value.find(n => n.date === selectedDayDetail.value.dateStr);
                     return (note && note.content) || '';
                 });
+
+                const currentDayWorkLocation = computed(() => {
+                    if (!selectedDayDetail.value) return null;
+                    const note = dayNotesForAccount.value.find(n => n.date === selectedDayDetail.value.dateStr);
+                    return (note && note.workLocation) || null;
+                });
+
+                const setWorkLocation = (loc) => {
+                    if (readOnly.value || !selectedDayDetail.value) return;
+                    const id = currentDayNoteId.value || instantId();
+                    currentDayNoteId.value = id;
+                    db.transact(db.tx.dayNotes[id].update({
+                        accountId: currentAccountId.value,
+                        ownerId: authUser.value.id,
+                        date: selectedDayDetail.value.dateStr,
+                        workLocation: loc, // null clears it
+                        updatedAt: Date.now(),
+                        shareToken: (currentAccount.value && currentAccount.value.shareToken) || null,
+                    }));
+                };
+
+                // Bulk-assign WFH/Office by weekday for the currently viewed month,
+                // e.g. Tue/Wed/Thu -> Office, Mon/Fri -> WFH. Doesn't touch any other
+                // field on those days' notes (content/images stay put), and any
+                // individual day can still be corrected from its own detail modal.
+                const bulkLocationPanelOpen = ref(false);
+                const bulkWfhWeekdays = ref([]);   // JS Date.getDay() values: 0=Sun..6=Sat
+                const bulkOfficeWeekdays = ref([]);
+                const bulkLocationError = ref('');
+
+                const toggleBulkWeekday = (which, wd) => {
+                    const target = which === 'wfh' ? bulkWfhWeekdays : bulkOfficeWeekdays;
+                    const other = which === 'wfh' ? bulkOfficeWeekdays : bulkWfhWeekdays;
+                    if (target.value.includes(wd)) {
+                        target.value = target.value.filter(d => d !== wd);
+                    } else {
+                        target.value = [...target.value, wd];
+                        other.value = other.value.filter(d => d !== wd); // a weekday can't be both
+                    }
+                };
+
+                const applyBulkWorkLocation = () => {
+                    bulkLocationError.value = '';
+                    if (bulkWfhWeekdays.value.length === 0 && bulkOfficeWeekdays.value.length === 0) {
+                        bulkLocationError.value = '至少选一个周几';
+                        return;
+                    }
+
+                    const year = currentYear.value;
+                    const month = currentMonth.value + 1; // 1-indexed
+                    const daysInMonth = new Date(year, month, 0).getDate();
+
+                    const txs = [];
+                    const applyOne = (day, loc) => {
+                        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const existing = dayNotesForAccount.value.find(n => n.date === dateStr);
+                        const id = existing ? existing.id : instantId();
+                        txs.push(db.tx.dayNotes[id].update({
+                            accountId: currentAccountId.value,
+                            ownerId: authUser.value.id,
+                            date: dateStr,
+                            workLocation: loc,
+                            updatedAt: Date.now(),
+                            shareToken: (currentAccount.value && currentAccount.value.shareToken) || null,
+                        }));
+                    };
+
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const wd = new Date(year, month - 1, day).getDay();
+                        if (bulkWfhWeekdays.value.includes(wd)) applyOne(day, 'wfh');
+                        else if (bulkOfficeWeekdays.value.includes(wd)) applyOne(day, 'office');
+                    }
+
+                    db.transact(txs);
+                    bulkLocationPanelOpen.value = false;
+                };
 
                 const currentDayImages = computed(() => {
                     if (!selectedDayDetail.value) return [];
@@ -2316,24 +2531,37 @@
                         if (r.type === 'deposit') dayDepositMap[r.date] = (dayDepositMap[r.date] || 0) + r.amount;
                     });
                     
+                    // Time-range filter (30天/90天/今年/全部). The cumulative line's
+                    // running total is computed over the FULL history first so the
+                    // baseline stays correct, then sliced down to the visible window —
+                    // otherwise "30天" would misleadingly reset the curve to 0.
+                    let rangeCutoff = null;
+                    const now = new Date();
+                    if (chartRangeFilter.value === '30d') { rangeCutoff = new Date(now); rangeCutoff.setDate(now.getDate() - 29); }
+                    else if (chartRangeFilter.value === '90d') { rangeCutoff = new Date(now); rangeCutoff.setDate(now.getDate() - 89); }
+                    else if (chartRangeFilter.value === 'year') { rangeCutoff = new Date(now.getFullYear(), 0, 1); }
+                    const inRange = (d) => !rangeCutoff || new Date(d + 'T00:00:00') >= rangeCutoff;
+
                     const tradeDatesOnly = Object.keys(dayTradeMap).sort((a,b) => new Date(a) - new Date(b));
-                    const dailyBarValues = tradeDatesOnly.map(d => dayTradeMap[d]);
-                    dailyBarChart.data.labels = tradeDatesOnly;
+                    const visibleTradeDates = tradeDatesOnly.filter(inRange);
+                    const dailyBarValues = visibleTradeDates.map(d => dayTradeMap[d]);
+                    dailyBarChart.data.labels = visibleTradeDates;
                     dailyBarChart.data.datasets[0].data = dailyBarValues;
                     dailyBarChart.data.datasets[0].backgroundColor = dailyBarValues.map(v => v > 0 ? '#10b981' : (v < 0 ? '#f43f5e' : '#9ca3af'));
                     dailyBarChart.update();
 
                     let cumPnlSum = 0;
-                    const pnlLineValues = tradeDatesOnly.map(d => {
-                        cumPnlSum += dayTradeMap[d];
-                        return cumPnlSum;
+                    const fullCumValues = tradeDatesOnly.map(d => { cumPnlSum += dayTradeMap[d]; return cumPnlSum; });
+                    const visibleCumLabels = [], visibleCumValues = [];
+                    tradeDatesOnly.forEach((d, i) => {
+                        if (inRange(d)) { visibleCumLabels.push(d); visibleCumValues.push(fullCumValues[i]); }
                     });
-                    cumLineChart.data.labels = tradeDatesOnly;
-                    cumLineChart.data.datasets[0].data = pnlLineValues;
+                    cumLineChart.data.labels = visibleCumLabels;
+                    cumLineChart.data.datasets[0].data = visibleCumValues;
                     cumLineChart.update();
 
                     if (depositBarChart) {
-                        const depositDatesOnly = Object.keys(dayDepositMap).sort((a,b) => new Date(a) - new Date(b));
+                        const depositDatesOnly = Object.keys(dayDepositMap).sort((a,b) => new Date(a) - new Date(b)).filter(inRange);
                         const dailyDepositValues = depositDatesOnly.map(d => dayDepositMap[d]);
                         depositBarChart.data.labels = depositDatesOnly;
                         depositBarChart.data.datasets[0].data = dailyDepositValues;
@@ -2440,13 +2668,15 @@
                     isLoading, dbErrorMsg, connectionState,
                     authLoading, authUser, authError, loginEmail, loginSentEmail, loginCode, loginError, loginSending,
                     sendCode, verifyCode, logout,
-                    records, form, formError, selectedYearMonth, currentYear, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter, gradeStatsPeriod,
+                    records, form, formError, selectedYearMonth, currentYear, currentMonth, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter, gradeStatsPeriod, workLocationStatsPeriod, chartRangeFilter,
                     replayMode, replayTicker, toggleReplayMode, unlockReplayTicker, switchFormType,
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, importData,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
                     toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl,
                     noteEditorEl, noteSaveStatus, onNoteInput, applyNoteFormat, currentDayNoteContent,
+                    currentDayWorkLocation, setWorkLocation,
+                    bulkLocationPanelOpen, bulkWfhWeekdays, bulkOfficeWeekdays, bulkLocationError, toggleBulkWeekday, applyBulkWorkLocation,
                     newImageUrlInput, currentDayImages, addDayImage, removeDayImage, onDayImageError,
                     imageFileInputEl, imageUploading, imageUploadError, handleImageFileSelect, captureScreenshot,
                     cropModalOpen, cropImageUrl, cropImgEl, cropSelection, startCropDrag, moveCropDrag, endCropDrag, cancelCrop, retakeScreenshot, confirmCrop,
