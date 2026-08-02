@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=52">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=52">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=60">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=60">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=52">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=60">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=52">
+    <link rel="manifest" href="manifest.json?v=60">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -25,7 +25,113 @@
     <!-- InstantDB: real-time sync backend, loaded via CDN (no build step needed) -->
     <script src="https://www.unpkg.com/@instantdb/core@latest/dist/standalone/index.umd.cjs"></script>
     <style>
-        body { background-color: #0b0f19; color: #f3f4f6; font-family: sans-serif; }
+        /* ============================================================
+           Theme system. Colors are driven by CSS variables set per
+           [data-theme] on <html>, then a set of override rules maps
+           the handful of Tailwind utility classes used for structural
+           chrome (page/panel/input backgrounds, borders, gray text,
+           the indigo "accent" color) onto those variables. Semantic
+           colors — profit green, loss red, A/B/C grade badges — are
+           deliberately left untouched by every theme, since they carry
+           meaning and shouldn't shift with the "look" of the app.
+
+           Classes that get combined with Tailwind's bg-opacity-XX /
+           border-opacity-XX utilities elsewhere in this file (e.g.
+           "bg-gray-800 bg-opacity-40") are overridden using rgba() +
+           Tailwind's own --tw-bg-opacity/--tw-border-opacity variables,
+           so those translucency effects keep working under every theme
+           instead of becoming solid blocks.
+        ============================================================ */
+        :root, [data-theme="midnight"] {
+            --t-bg: #0b0f19; --t-panel: #111827; --t-input: #1f2937;
+            --t-surface2-rgb: 31,41,55; --t-surface3-rgb: 17,24,39; --t-border-rgb: 31,41,55;
+            --t-border2: #374151;
+            --t-text1-rgb: 255,255,255; --t-text2: #9ca3af; --t-text3: #d1d5db; --t-text4: #6b7280;
+            --t-accent: #6366f1; --t-accent-hover: #818cf8; --t-accent-rgb: 55,48,163;
+        }
+        [data-theme="charcoal"] {
+            --t-bg: #18181b; --t-panel: #27272a; --t-input: #3f3f46;
+            --t-surface2-rgb: 63,63,70; --t-surface3-rgb: 39,39,42; --t-border-rgb: 63,63,70;
+            --t-border2: #52525b;
+            --t-text1-rgb: 250,250,250; --t-text2: #a1a1aa; --t-text3: #d4d4d8; --t-text4: #71717a;
+            --t-accent: #3b82f6; --t-accent-hover: #60a5fa; --t-accent-rgb: 30,64,175;
+        }
+        [data-theme="ocean"] {
+            --t-bg: #041c2c; --t-panel: #0c2d42; --t-input: #123a52;
+            --t-surface2-rgb: 18,58,82; --t-surface3-rgb: 12,45,66; --t-border-rgb: 18,58,82;
+            --t-border2: #1c4d6b;
+            --t-text1-rgb: 240,249,255; --t-text2: #7dd3fc; --t-text3: #bae6fd; --t-text4: #0891b2;
+            --t-accent: #06b6d4; --t-accent-hover: #22d3ee; --t-accent-rgb: 8,71,89;
+        }
+        [data-theme="forest"] {
+            --t-bg: #0a1510; --t-panel: #142820; --t-input: #1c3a2e;
+            --t-surface2-rgb: 28,58,46; --t-surface3-rgb: 20,40,32; --t-border-rgb: 28,58,46;
+            --t-border2: #2a5240;
+            --t-text1-rgb: 240,253,244; --t-text2: #86efac; --t-text3: #bbf7d0; --t-text4: #4ade80;
+            --t-accent: #10b981; --t-accent-hover: #34d399; --t-accent-rgb: 6,78,59;
+        }
+        [data-theme="crimson"] {
+            --t-bg: #1a0a0f; --t-panel: #2b1119; --t-input: #3d1822;
+            --t-surface2-rgb: 61,24,34; --t-surface3-rgb: 43,17,25; --t-border-rgb: 61,24,34;
+            --t-border2: #5c2130;
+            --t-text1-rgb: 255,241,242; --t-text2: #fda4af; --t-text3: #fecdd3; --t-text4: #fb7185;
+            --t-accent: #f43f5e; --t-accent-hover: #fb7185; --t-accent-rgb: 136,19,55;
+        }
+        [data-theme="royal"] {
+            --t-bg: #120b1f; --t-panel: #1f1433; --t-input: #2c1c47;
+            --t-surface2-rgb: 44,28,71; --t-surface3-rgb: 31,20,51; --t-border-rgb: 44,28,71;
+            --t-border2: #402a63;
+            --t-text1-rgb: 250,245,255; --t-text2: #c4b5fd; --t-text3: #ddd6fe; --t-text4: #a78bfa;
+            --t-accent: #8b5cf6; --t-accent-hover: #a78bfa; --t-accent-rgb: 76,29,149;
+        }
+        [data-theme="amber"] {
+            --t-bg: #1a1408; --t-panel: #2b2211; --t-input: #3d3018;
+            --t-surface2-rgb: 61,48,24; --t-surface3-rgb: 43,34,17; --t-border-rgb: 61,48,24;
+            --t-border2: #5c4a24;
+            --t-text1-rgb: 255,251,235; --t-text2: #fcd34d; --t-text3: #fde68a; --t-text4: #fbbf24;
+            --t-accent: #f59e0b; --t-accent-hover: #fbbf24; --t-accent-rgb: 120,53,15;
+        }
+        [data-theme="oled"] {
+            --t-bg: #000000; --t-panel: #0a0a0a; --t-input: #141414;
+            --t-surface2-rgb: 20,20,20; --t-surface3-rgb: 10,10,10; --t-border-rgb: 26,26,26;
+            --t-border2: #262626;
+            --t-text1-rgb: 255,255,255; --t-text2: #a3a3a3; --t-text3: #d4d4d4; --t-text4: #737373;
+            --t-accent: #6366f1; --t-accent-hover: #818cf8; --t-accent-rgb: 49,46,129;
+        }
+        [data-theme="light"] {
+            --t-bg: #f8fafc; --t-panel: #ffffff; --t-input: #f1f5f9;
+            --t-surface2-rgb: 226,232,240; --t-surface3-rgb: 241,245,249; --t-border-rgb: 226,232,240;
+            --t-border2: #cbd5e1;
+            --t-text1-rgb: 15,23,42; --t-text2: #475569; --t-text3: #334155; --t-text4: #94a3b8;
+            --t-accent: #4f46e5; --t-accent-hover: #6366f1; --t-accent-rgb: 199,210,254;
+        }
+        [data-theme="warm"] {
+            --t-bg: #fdf6ec; --t-panel: #fffaf3; --t-input: #fdf0dd;
+            --t-surface2-rgb: 251,230,200; --t-surface3-rgb: 253,240,221; --t-border-rgb: 243,223,192;
+            --t-border2: #e8cca0;
+            --t-text1-rgb: 66,32,6; --t-text2: #78716c; --t-text3: #57534e; --t-text4: #a8a29e;
+            --t-accent: #ea580c; --t-accent-hover: #f97316; --t-accent-rgb: 254,215,170;
+        }
+
+        body { background-color: var(--t-bg); color: rgb(var(--t-text1-rgb)); font-family: sans-serif; }
+        .bg-dark-panel { background-color: var(--t-panel) !important; }
+        .bg-dark-input { background-color: var(--t-input) !important; }
+        .bg-gray-800 { background-color: rgba(var(--t-surface2-rgb), var(--tw-bg-opacity, 1)) !important; }
+        .bg-gray-900 { background-color: rgba(var(--t-surface3-rgb), var(--tw-bg-opacity, 1)) !important; }
+        .border-gray-800 { border-color: rgba(var(--t-border-rgb), var(--tw-border-opacity, 1)) !important; }
+        .border-gray-700 { border-color: var(--t-border2) !important; }
+        .text-white { color: rgba(var(--t-text1-rgb), var(--tw-text-opacity, 1)) !important; }
+        .text-gray-300 { color: var(--t-text3) !important; }
+        .text-gray-400 { color: var(--t-text2) !important; }
+        .text-gray-500 { color: var(--t-text2) !important; }
+        .text-gray-600 { color: var(--t-text4) !important; }
+        .bg-indigo-600 { background-color: var(--t-accent) !important; }
+        .hover\:bg-indigo-500:hover, .hover\:bg-indigo-600:hover { background-color: var(--t-accent-hover) !important; }
+        .text-indigo-400, .text-indigo-300 { color: var(--t-accent-hover) !important; }
+        .border-indigo-500 { border-color: var(--t-accent) !important; }
+        .focus\:border-indigo-500:focus { border-color: var(--t-accent) !important; }
+        .bg-indigo-900 { background-color: rgba(var(--t-accent-rgb), var(--tw-bg-opacity, 1)) !important; }
+
         [v-cloak] { display: none !important; }
 
         /* Rich-text day note editor: Tailwind's reset strips default list
@@ -43,8 +149,6 @@
            of a webpage. Safe to keep for the browser/mobile version too. */
         html { scrollbar-width: none; -ms-overflow-style: none; }
         ::-webkit-scrollbar { width: 0; height: 0; display: none; }
-        .bg-dark-panel { background-color: #111827; }
-        .bg-dark-input { background-color: #1f2937; }
         
         .group:hover .group-hover\:flex {
             display: flex !important;
@@ -52,6 +156,10 @@
 
         input[type="date"], input[type="month"] {
             color-scheme: dark; 
+        }
+        [data-theme="light"] input[type="date"], [data-theme="light"] input[type="month"],
+        [data-theme="warm"] input[type="date"], [data-theme="warm"] input[type="month"] {
+            color-scheme: light;
         }
         input[type="date"]::-webkit-calendar-picker-indicator,
         input[type="month"]::-webkit-calendar-picker-indicator {
@@ -178,6 +286,7 @@
 
                 <div class="flex gap-1.5">
                     <button @click="exportData" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-300 transition cursor-pointer">导出备份</button>
+                    <button @click="exportCSV" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-300 transition cursor-pointer" title="导出为 CSV，可以直接用 Excel 打开">导出 CSV</button>
                     <label class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] rounded text-gray-300 transition cursor-pointer">
                         导入备份 <input type="file" @change="importData" class="hidden">
                     </label>
@@ -209,6 +318,34 @@
                 <button @click="tradingRulesPanelOpen = true" class="px-2.5 py-1 bg-indigo-900 bg-opacity-40 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/50 text-xs rounded transition cursor-pointer">
                     📋 交易规则
                 </button>
+
+                <div class="w-px h-4 bg-gray-700"></div>
+
+                <div class="relative">
+                    <button @click="themePanelOpen = !themePanelOpen" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-xs rounded text-gray-300 transition cursor-pointer flex items-center gap-1.5">
+                        🎨 主题
+                    </button>
+                    <div v-if="themePanelOpen" class="absolute z-50 top-full right-0 mt-2 w-64 bg-black text-gray-200 text-xs p-3 rounded-lg shadow-2xl border border-gray-800">
+                        <p class="text-[10px] text-gray-500 mb-2">背景色系 + 强调色会跟着换；盈亏红绿、评级三色这些"有含义"的颜色不变。</p>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button v-for="t in themeOptions" :key="t.id" type="button" @click="themeId = t.id; if (t.id !== 'custom') themePanelOpen = false"
+                                    class="flex items-center gap-2 px-2 py-1.5 rounded transition cursor-pointer text-left"
+                                    :class="themeId === t.id ? 'bg-gray-800 ring-1 ring-indigo-500' : 'hover:bg-gray-800'">
+                                <span class="w-4 h-4 rounded-full flex-shrink-0 border border-white/10" :style="{ background: t.swatch }"></span>
+                                <span class="text-[11px] text-gray-200 truncate">{{ t.name }}</span>
+                            </button>
+                        </div>
+
+                        <div v-if="themeId === 'custom'" class="mt-3 pt-3 border-t border-gray-800 space-y-2">
+                            <div v-for="field in [['bg','页面背景'],['panel','卡片背景'],['input','输入框背景'],['border','边框'],['text','主文字'],['accent','强调色']]" :key="field[0]"
+                                 class="flex items-center justify-between">
+                                <span class="text-[11px] text-gray-400">{{ field[1] }}</span>
+                                <input type="color" v-model="customTheme[field[0]]" @input="applyCustomTheme"
+                                       class="w-8 h-6 rounded cursor-pointer bg-transparent border border-gray-700">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="w-px h-4 bg-gray-700"></div>
 
@@ -445,6 +582,26 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-2 gap-2 col-span-2 border-t border-gray-800 pt-2">
+                        <div>
+                            <span class="text-[10px] text-gray-500 block mb-1">连胜 / 连亏</span>
+                            <div v-if="streakStats.currentStreak !== 0" class="text-sm font-bold" :class="streakStats.currentStreak > 0 ? 'text-green-400' : 'text-red-400'">
+                                {{ streakStats.currentStreak > 0 ? '连胜 ' + streakStats.currentStreak : '连亏 ' + Math.abs(streakStats.currentStreak) }}
+                            </div>
+                            <div v-else class="text-sm text-gray-600">-</div>
+                            <span class="text-[9px] text-gray-600">历史最长：{{ streakStats.longestWin }}胜 / {{ streakStats.longestLoss }}亏</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-gray-500 block mb-1">最大回撤</span>
+                            <div v-if="maxDrawdownStat" class="text-sm font-bold text-red-400">
+                                {{ maxDrawdownStat.maxDD.toFixed(2) }}
+                                <span v-if="maxDrawdownStat.maxDDPct !== null" class="text-[10px] font-normal text-gray-500">({{ maxDrawdownStat.maxDDPct.toFixed(1) }}%)</span>
+                            </div>
+                            <div v-else class="text-sm text-gray-600">-</div>
+                            <span v-if="maxDrawdownStat" class="text-[9px] text-gray-600">{{ maxDrawdownStat.peakDate }} → {{ maxDrawdownStat.troughDate }}</span>
+                        </div>
+                    </div>
+
                     <div class="relative group border-t border-gray-800 pt-2 col-span-2">
                         <div class="flex items-center gap-1 text-xs text-gray-400 mb-1.5">
                             <span>做多 Win %</span>
@@ -548,6 +705,7 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
 
@@ -656,6 +814,7 @@
                                             <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Week {{ wIdx + 1 }}</span>
                                             <span class="text-xs font-bold mt-1.5 leading-none" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-400')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
                                             <span v-if="week.stats.winPct !== null" class="text-[10px] text-indigo-300 mt-1 font-medium">胜率 {{ week.stats.winPct.toFixed(0) }}%</span>
+                                            <span v-if="week.stats.profitFactor !== null" class="text-[10px] text-purple-300 mt-0.5 font-medium">PF {{ week.stats.profitFactor.toFixed(2) }}</span>
                                             <span class="text-[10px] text-gray-400 mt-2 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeDays }}</strong> 天交易</span>
                                             <span class="text-[10px] text-gray-400 mt-0.5 font-light"><strong class="text-gray-200 font-medium">{{ week.stats.tradeCount }}</strong> 笔交易</span>
                                         </div>
@@ -692,9 +851,10 @@
                                     <div class="flex justify-between items-center text-[10px] text-gray-500 mt-1 px-0.5">
                                         <span class="font-medium">Week {{ wIdx + 1 }}</span>
                                         <span v-if="week.stats.winPct !== null" class="text-indigo-300">胜率{{ week.stats.winPct.toFixed(0) }}%</span>
+                                        <span v-if="week.stats.profitFactor !== null" class="text-purple-300">PF{{ week.stats.profitFactor.toFixed(2) }}</span>
                                         <span class="font-bold" :class="week.stats.pnl > 0 ? 'text-green-400' : (week.stats.pnl < 0 ? 'text-red-400' : 'text-gray-500')">{{ week.stats.pnl > 0 ? '+' : '' }}{{ week.stats.pnl.toFixed(2) }}</span>
-                                        <span>{{ week.stats.tradeDays }}天 · {{ week.stats.tradeCount }}笔</span>
                                     </div>
+                                    <div class="text-right text-[10px] text-gray-500 px-0.5">{{ week.stats.tradeDays }}天 · {{ week.stats.tradeCount }}笔</div>
                                 </div>
                             </div>
                         </div>
@@ -1123,6 +1283,77 @@
 
         createApp({
             setup() {
+                // --- Theme selector (10 presets + 1 custom, persisted locally) ---
+                const themeOptions = [
+                    { id: 'midnight', name: 'Midnight Indigo', swatch: 'linear-gradient(135deg, #0b0f19, #6366f1)' },
+                    { id: 'charcoal', name: 'Slate Charcoal', swatch: 'linear-gradient(135deg, #18181b, #3b82f6)' },
+                    { id: 'ocean', name: 'Deep Ocean', swatch: 'linear-gradient(135deg, #041c2c, #06b6d4)' },
+                    { id: 'forest', name: 'Forest Night', swatch: 'linear-gradient(135deg, #0a1510, #10b981)' },
+                    { id: 'crimson', name: 'Crimson Dusk', swatch: 'linear-gradient(135deg, #1a0a0f, #f43f5e)' },
+                    { id: 'royal', name: 'Royal Purple', swatch: 'linear-gradient(135deg, #120b1f, #8b5cf6)' },
+                    { id: 'amber', name: 'Amber Noir', swatch: 'linear-gradient(135deg, #1a1408, #f59e0b)' },
+                    { id: 'oled', name: 'Pure Black', swatch: 'linear-gradient(135deg, #000000, #6366f1)' },
+                    { id: 'light', name: 'Light Minimal', swatch: 'linear-gradient(135deg, #f8fafc, #4f46e5)' },
+                    { id: 'warm', name: 'Light Warm', swatch: 'linear-gradient(135deg, #fdf6ec, #ea580c)' },
+                    { id: 'custom', name: '🎨 自定义', swatch: 'linear-gradient(135deg, #6366f1, #f43f5e, #10b981)' },
+                ];
+                const themeId = ref(localStorage.getItem('journal_theme') || 'midnight');
+                const themePanelOpen = ref(false);
+
+                // --- Custom theme: small hex color-math helpers (no library) ---
+                const hexToRgbArr = (hex) => {
+                    const h = hex.replace('#', '');
+                    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+                    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+                };
+                const mixHex = (hexA, hexB, t) => {
+                    const a = hexToRgbArr(hexA), b = hexToRgbArr(hexB);
+                    const m = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+                    return '#' + m.map(v => v.toString(16).padStart(2, '0')).join('');
+                };
+                const lightenHex = (hex, amt) => mixHex(hex, '#ffffff', amt);
+
+                const defaultCustom = {
+                    bg: '#0b0f19', panel: '#111827', input: '#1f2937',
+                    border: '#1f2937', text: '#ffffff', accent: '#6366f1',
+                };
+                const customTheme = ref({ ...defaultCustom, ...JSON.parse(localStorage.getItem('journal_theme_custom') || '{}') });
+
+                const applyCustomTheme = () => {
+                    const c = customTheme.value;
+                    const root = document.documentElement.style;
+                    root.setProperty('--t-bg', c.bg);
+                    root.setProperty('--t-panel', c.panel);
+                    root.setProperty('--t-input', c.input);
+                    root.setProperty('--t-surface2-rgb', hexToRgbArr(c.input).join(','));
+                    root.setProperty('--t-surface3-rgb', hexToRgbArr(c.panel).join(','));
+                    root.setProperty('--t-border-rgb', hexToRgbArr(c.border).join(','));
+                    root.setProperty('--t-border2', lightenHex(c.border, 0.25));
+                    root.setProperty('--t-text1-rgb', hexToRgbArr(c.text).join(','));
+                    root.setProperty('--t-text2', mixHex(c.text, c.bg, 0.45));
+                    root.setProperty('--t-text3', mixHex(c.text, c.bg, 0.25));
+                    root.setProperty('--t-text4', mixHex(c.text, c.bg, 0.6));
+                    root.setProperty('--t-accent', c.accent);
+                    root.setProperty('--t-accent-hover', lightenHex(c.accent, 0.2));
+                    root.setProperty('--t-accent-rgb', hexToRgbArr(mixHex(c.accent, c.bg, 0.7)).join(','));
+                    localStorage.setItem('journal_theme_custom', JSON.stringify(c));
+                };
+
+                const clearCustomThemeOverrides = () => {
+                    const root = document.documentElement.style;
+                    ['--t-bg', '--t-panel', '--t-input', '--t-surface2-rgb', '--t-surface3-rgb', '--t-border-rgb', '--t-border2', '--t-text1-rgb', '--t-text2', '--t-text3', '--t-text4', '--t-accent', '--t-accent-hover', '--t-accent-rgb']
+                        .forEach(prop => root.removeProperty(prop));
+                };
+
+                document.documentElement.setAttribute('data-theme', themeId.value);
+                if (themeId.value === 'custom') applyCustomTheme();
+                watch(themeId, (val) => {
+                    document.documentElement.setAttribute('data-theme', val);
+                    localStorage.setItem('journal_theme', val);
+                    if (val === 'custom') applyCustomTheme();
+                    else clearCustomThemeOverrides(); // fall back to the preset's own CSS variables
+                });
+
                 const isLoading = ref(true);
                 const dbErrorMsg = ref(null);
                 const connectionState = ref('connecting');
@@ -1816,15 +2047,56 @@
                     };
                 });
 
+                // Chronological trade order — same list feeds both streaks and the
+                // max-drawdown curve below, so they can't disagree on ordering.
+                const chronologicalTrades = computed(() => {
+                    return records.value
+                        .filter(r => r.type === 'trade')
+                        .slice()
+                        .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.createdAt || 0) - (b.createdAt || 0)));
+                });
+
+                const streakStats = computed(() => {
+                    let curWin = 0, curLoss = 0, longestWin = 0, longestLoss = 0;
+                    chronologicalTrades.value.forEach(t => {
+                        if (t.amount > 0) { curWin++; curLoss = 0; if (curWin > longestWin) longestWin = curWin; }
+                        else if (t.amount < 0) { curLoss++; curWin = 0; if (curLoss > longestLoss) longestLoss = curLoss; }
+                        else { curWin = 0; curLoss = 0; } // exact breakeven trade breaks the streak either way
+                    });
+                    const currentStreak = curWin > 0 ? curWin : (curLoss > 0 ? -curLoss : 0);
+                    return { currentStreak, longestWin, longestLoss };
+                });
+
+                // Max drawdown: largest peak-to-trough decline on the cumulative
+                // trading P&L curve (deposits excluded — this measures trading
+                // performance, not fund flows). % is relative to total deposited
+                // capital as a rough scale reference, not a precise NAV-based figure.
+                const maxDrawdownStat = computed(() => {
+                    const trades = chronologicalTrades.value;
+                    if (!trades.length) return null;
+                    let cum = 0, peak = -Infinity, peakDate = trades[0].date, maxDD = 0, ddPeakDate = null, ddTroughDate = null;
+                    trades.forEach(t => {
+                        cum += t.amount;
+                        if (cum > peak) { peak = cum; peakDate = t.date; }
+                        const dd = cum - peak;
+                        if (dd < maxDD) { maxDD = dd; ddPeakDate = peakDate; ddTroughDate = t.date; }
+                    });
+                    if (maxDD === 0) return null; // never had a decline from a peak
+                    const totalDeposits = records.value.filter(r => r.type === 'deposit').reduce((a, r) => a + r.amount, 0);
+                    const maxDDPct = totalDeposits > 0 ? (maxDD / totalDeposits * 100) : null;
+                    return { maxDD, maxDDPct, peakDate: ddPeakDate, troughDate: ddTroughDate };
+                });
+
                 const dailyMergedMap = computed(() => {
                     const map = {};
                     records.value.forEach(r => {
-                        if (!map[r.date]) { map[r.date] = { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0 }; }
+                        if (!map[r.date]) { map[r.date] = { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0, grossProfit: 0, grossLoss: 0 }; }
                         if (r.type === 'trade') {
                             map[r.date].pnl += r.amount;
                             map[r.date].hasTradeData = true;
                             map[r.date].tradeCount += 1;
-                            if (r.amount > 0) map[r.date].winCount += 1;
+                            if (r.amount > 0) { map[r.date].winCount += 1; map[r.date].grossProfit += r.amount; }
+                            else if (r.amount < 0) { map[r.date].grossLoss += Math.abs(r.amount); }
                             if (r.ticker && r.ticker !== '-') map[r.date].tickers.push(r.ticker);
                         } else if (r.type === 'deposit') {
                             map[r.date].deposit += r.amount;
@@ -1856,11 +2128,12 @@
                     for (let b = 0; b < blanks; b++) cells.push({ isPlaceholder: true });
                     for (let d = 1; d <= daysInMonth; d++) {
                         const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                        const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0 };
+                        const dayData = dailyMergedMap.value[dateStr] || { pnl: 0, deposit: 0, hasTradeData: false, tickers: [], tradeCount: 0, winCount: 0, grossProfit: 0, grossLoss: 0 };
                         cells.push({
                             isPlaceholder: false, dayNum: d, dateStr: dateStr, 
                             pnl: dayData.pnl, deposit: dayData.deposit, hasTradeData: dayData.hasTradeData, tickers: dayData.tickers, tradeCount: dayData.tradeCount,
                             winCount: dayData.winCount, winPct: dayData.tradeCount ? (dayData.winCount / dayData.tradeCount * 100) : null,
+                            grossProfit: dayData.grossProfit, grossLoss: dayData.grossLoss,
                             hasNote: noteDatesSet.value.has(dateStr),
                         });
                     }
@@ -1868,17 +2141,20 @@
                     while (cells.length > 0) {
                         const weekDays = cells.splice(0, 7);
                         while (weekDays.length < 7) weekDays.push({ isPlaceholder: true });
-                        let weeklyPnl = 0, weeklyTradeDays = 0, weeklyTradeCount = 0, weeklyWinCount = 0;
+                        let weeklyPnl = 0, weeklyTradeDays = 0, weeklyTradeCount = 0, weeklyWinCount = 0, weeklyGrossProfit = 0, weeklyGrossLoss = 0;
                         weekDays.forEach(day => {
                             if (!day.isPlaceholder && day.hasTradeData) {
                                 weeklyPnl += day.pnl;
                                 weeklyTradeDays++;
                                 weeklyTradeCount += day.tradeCount;
                                 weeklyWinCount += day.winCount;
+                                weeklyGrossProfit += day.grossProfit;
+                                weeklyGrossLoss += day.grossLoss;
                             }
                         });
                         const weeklyWinPct = weeklyTradeCount ? (weeklyWinCount / weeklyTradeCount * 100) : null;
-                        matrix.push({ days: weekDays, stats: { pnl: weeklyPnl, tradeDays: weeklyTradeDays, tradeCount: weeklyTradeCount, winPct: weeklyWinPct } });
+                        const weeklyProfitFactor = weeklyGrossLoss > 0 ? (weeklyGrossProfit / weeklyGrossLoss) : null;
+                        matrix.push({ days: weekDays, stats: { pnl: weeklyPnl, tradeDays: weeklyTradeDays, tradeCount: weeklyTradeCount, winPct: weeklyWinPct, profitFactor: weeklyProfitFactor } });
                     }
                     return matrix;
                 };
@@ -2745,6 +3021,38 @@
                     document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
                 };
 
+                const exportCSV = () => {
+                    const headers = ['日期', '类型', '股票代码/备注', '方向', '评级', '股数', '入场价', '止盈价', '止损价', '金额'];
+                    const sortedRecords = records.value.slice().sort((a, b) =>
+                        (a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.createdAt || 0) - (b.createdAt || 0))
+                    );
+                    const rows = sortedRecords.map(r => [
+                        r.date,
+                        r.type === 'trade' ? '交易' : '入金',
+                        r.ticker || '',
+                        r.direction ? (r.direction === 'long' ? '做多' : '做空') : '',
+                        r.grade || '',
+                        r.shares !== undefined ? r.shares : '',
+                        r.entryPrice !== undefined ? r.entryPrice : '',
+                        r.takeProfitPrice !== undefined ? r.takeProfitPrice : '',
+                        r.stopLossPrice !== undefined ? r.stopLossPrice : '',
+                        r.amount,
+                    ]);
+                    const escapeCsv = (val) => {
+                        const s = String(val ?? '');
+                        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+                    };
+                    const csvContent = [headers, ...rows].map(row => row.map(escapeCsv).join(',')).join('\r\n');
+                    // Leading BOM so Excel opens the UTF-8 Chinese text correctly instead of mangling it.
+                    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.href = url;
+                    downloadAnchor.download = `journal_${currentAccountName.value}_${toLocalDateStr(new Date())}.csv`;
+                    document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+                    URL.revokeObjectURL(url);
+                };
+
                 const importData = (event) => {
                     const file = event.target.files[0]; if (!file) return;
                     const reader = new FileReader();
@@ -2821,13 +3129,15 @@
 
                 return {
                     accounts, currentAccountId, currentAccountName, promptCreateAccount, renameCurrentAccount, onAccountSwitch, deleteCurrentAccount,
+                    themeOptions, themeId, themePanelOpen, customTheme, applyCustomTheme,
                     isLoading, dbErrorMsg, connectionState,
                     authLoading, authUser, authError, loginEmail, loginSentEmail, loginCode, loginError, loginSending,
                     sendCode, verifyCode, logout,
                     records, form, formError, selectedYearMonth, currentYear, currentMonth, calendarWeeks, monthlySummary, stats, viewMode, tableTab, searchQuery, dateFilter, gradeStatsPeriod, workLocationStatsPeriod, chartRangeFilter,
                     replayMode, replayTicker, toggleReplayMode, unlockReplayTicker, switchFormType,
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
-                    addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, importData,
+                    addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, exportCSV, importData,
+                    streakStats, maxDrawdownStat,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
                     toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl,
                     noteEditorEl, noteSaveStatus, onNoteInput, applyNoteFormat, currentDayNoteContent,
