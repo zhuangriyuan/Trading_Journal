@@ -6,17 +6,17 @@
     <title>Local Trading Journal (Multi-Account)</title>
 
     <!-- Browser tab icon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=60">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=60">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=62">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=62">
 
     <!-- iOS "Add to Home Screen" icon + app-like behavior -->
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=60">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=62">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Journal">
 
     <!-- PWA manifest (used by Android / Chrome "Add to Home Screen") -->
-    <link rel="manifest" href="manifest.json?v=60">
+    <link rel="manifest" href="manifest.json?v=62">
     <meta name="theme-color" content="#0b0f19">
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -582,23 +582,56 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 col-span-2 border-t border-gray-800 pt-2">
-                        <div>
-                            <span class="text-[10px] text-gray-500 block mb-1">连胜 / 连亏</span>
-                            <div v-if="streakStats.currentStreak !== 0" class="text-sm font-bold" :class="streakStats.currentStreak > 0 ? 'text-green-400' : 'text-red-400'">
-                                {{ streakStats.currentStreak > 0 ? '连胜 ' + streakStats.currentStreak : '连亏 ' + Math.abs(streakStats.currentStreak) }}
-                            </div>
-                            <div v-else class="text-sm text-gray-600">-</div>
-                            <span class="text-[9px] text-gray-600">历史最长：{{ streakStats.longestWin }}胜 / {{ streakStats.longestLoss }}亏</span>
+                    <div class="relative group border-t border-gray-800 pt-2 col-span-2">
+                        <div class="flex items-center gap-1 text-xs text-gray-400 cursor-help mb-1.5">
+                            <span>连胜 / 连亏（最长）</span>
+                            <span class="text-indigo-400 font-bold">ⓘ</span>
                         </div>
-                        <div>
-                            <span class="text-[10px] text-gray-500 block mb-1">最大回撤</span>
-                            <div v-if="maxDrawdownStat" class="text-sm font-bold text-red-400">
-                                {{ maxDrawdownStat.maxDD.toFixed(2) }}
-                                <span v-if="maxDrawdownStat.maxDDPct !== null" class="text-[10px] font-normal text-gray-500">({{ maxDrawdownStat.maxDDPct.toFixed(1) }}%)</span>
+                        <div class="grid grid-cols-4 gap-1 text-center">
+                            <div>
+                                <span class="block text-[9px] text-gray-500">全局</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight">{{ stats.streaks.global.longestWin }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight">{{ stats.streaks.global.longestLoss }}</span>
                             </div>
-                            <div v-else class="text-sm text-gray-600">-</div>
-                            <span v-if="maxDrawdownStat" class="text-[9px] text-gray-600">{{ maxDrawdownStat.peakDate }} → {{ maxDrawdownStat.troughDate }}</span>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当天</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight">{{ stats.streaks.day.longestWin }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight">{{ stats.streaks.day.longestLoss }}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当周</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight">{{ stats.streaks.week.longestWin }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight">{{ stats.streaks.week.longestLoss }}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[9px] text-gray-500">当月</span>
+                                <span class="block text-[10px] font-semibold text-green-400 leading-tight">{{ stats.streaks.month.longestWin }}</span>
+                                <span class="block text-[10px] font-semibold text-red-500 leading-tight">{{ stats.streaks.month.longestLoss }}</span>
+                            </div>
+                        </div>
+                        <div class="hidden group-hover:flex absolute z-50 bottom-full right-0 mb-2 w-48 bg-black text-gray-200 text-[11px] p-2.5 rounded-lg shadow-2xl border border-gray-800 flex-col leading-relaxed">
+                            <strong>连胜 / 连亏</strong>
+                            <span class="text-gray-400 mt-1">每列上面是那个区间里最长的连胜笔数，下面是最长连亏笔数。</span>
+                            <span class="mt-1" :class="stats.streaks.global.currentStreak >= 0 ? 'text-green-400' : 'text-red-400'">
+                                当前：{{ stats.streaks.global.currentStreak > 0 ? '连胜 ' + stats.streaks.global.currentStreak : (stats.streaks.global.currentStreak < 0 ? '连亏 ' + Math.abs(stats.streaks.global.currentStreak) : '-') }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="relative group border-t border-gray-800 pt-2 col-span-2">
+                        <div class="flex items-center gap-1 text-xs text-gray-400 cursor-help mb-1.5">
+                            <span>最大回撤</span>
+                            <span class="text-indigo-400 font-bold">ⓘ</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 text-center">
+                            <div><span class="block text-[9px] text-gray-500">全局</span><span class="text-xs font-semibold text-red-500">{{ stats.maxDrawdown.global !== null ? stats.maxDrawdown.global.toFixed(2) : '-' }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当天</span><span class="text-xs font-semibold text-red-500">{{ stats.maxDrawdown.day !== null ? stats.maxDrawdown.day.toFixed(2) : '-' }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当周</span><span class="text-xs font-semibold text-red-500">{{ stats.maxDrawdown.week !== null ? stats.maxDrawdown.week.toFixed(2) : '-' }}</span></div>
+                            <div><span class="block text-[9px] text-gray-500">当月</span><span class="text-xs font-semibold text-red-500">{{ stats.maxDrawdown.month !== null ? stats.maxDrawdown.month.toFixed(2) : '-' }}</span></div>
+                        </div>
+                        <div class="hidden group-hover:flex absolute z-50 bottom-full right-0 mb-2 w-48 bg-black text-gray-200 text-[11px] p-2.5 rounded-lg shadow-2xl border border-gray-800 flex-col leading-relaxed">
+                            <strong>最大回撤</strong>
+                            <span class="text-gray-400 mt-1">该区间内，账户累计盈亏曲线从最高点回落的最大金额。</span>
                         </div>
                     </div>
 
@@ -2002,6 +2035,34 @@
                         return { A: build('A'), B: build('B'), C: build('C') };
                     };
 
+                    const sortChrono = (list) => list.slice().sort((a, b) =>
+                        (a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.createdAt || 0) - (b.createdAt || 0))
+                    );
+
+                    // Longest win/loss streak WITHIN this list only (so "当天"/"当周"/
+                    // "当月" show the streak that happened inside that window, not the
+                    // account's all-time streak clipped to it).
+                    const streaksFor = (list) => {
+                        let curWin = 0, curLoss = 0, longestWin = 0, longestLoss = 0;
+                        sortChrono(list).forEach(t => {
+                            if (t.amount > 0) { curWin++; curLoss = 0; if (curWin > longestWin) longestWin = curWin; }
+                            else if (t.amount < 0) { curLoss++; curWin = 0; if (curLoss > longestLoss) longestLoss = curLoss; }
+                            else { curWin = 0; curLoss = 0; }
+                        });
+                        const currentStreak = curWin > 0 ? curWin : (curLoss > 0 ? -curLoss : 0);
+                        return { longestWin, longestLoss, currentStreak };
+                    };
+
+                    // Max peak-to-trough decline on this list's own cumulative P&L
+                    // curve — same "self-contained per period" logic as streaksFor.
+                    const maxDrawdownFor = (list) => {
+                        const sorted = sortChrono(list);
+                        if (!sorted.length) return null;
+                        let cum = 0, peak = -Infinity, maxDD = 0;
+                        sorted.forEach(t => { cum += t.amount; if (cum > peak) peak = cum; const dd = cum - peak; if (dd < maxDD) maxDD = dd; });
+                        return maxDD; // 0 if this list never had a decline from its own peak
+                    };
+
                     // WFH vs Office comparison: work location is tagged per DAY (in
                     // dayNotes.workLocation). Compare at the day level — "how many of
                     // the WFH days were net-profitable" and "total P&L on WFH days" —
@@ -2044,47 +2105,13 @@
                             week: workLocationDayStatsFor(d => d >= startOfWeekStr && d <= endOfWeekStr),
                             month: workLocationDayStatsFor(d => d.startsWith(targetYearMonth)),
                         },
+                        streaks: {
+                            global: streaksFor(tList), day: streaksFor(todayTrades), week: streaksFor(weeklyTrades), month: streaksFor(monthlyTrades),
+                        },
+                        maxDrawdown: {
+                            global: maxDrawdownFor(tList), day: maxDrawdownFor(todayTrades), week: maxDrawdownFor(weeklyTrades), month: maxDrawdownFor(monthlyTrades),
+                        },
                     };
-                });
-
-                // Chronological trade order — same list feeds both streaks and the
-                // max-drawdown curve below, so they can't disagree on ordering.
-                const chronologicalTrades = computed(() => {
-                    return records.value
-                        .filter(r => r.type === 'trade')
-                        .slice()
-                        .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : (a.createdAt || 0) - (b.createdAt || 0)));
-                });
-
-                const streakStats = computed(() => {
-                    let curWin = 0, curLoss = 0, longestWin = 0, longestLoss = 0;
-                    chronologicalTrades.value.forEach(t => {
-                        if (t.amount > 0) { curWin++; curLoss = 0; if (curWin > longestWin) longestWin = curWin; }
-                        else if (t.amount < 0) { curLoss++; curWin = 0; if (curLoss > longestLoss) longestLoss = curLoss; }
-                        else { curWin = 0; curLoss = 0; } // exact breakeven trade breaks the streak either way
-                    });
-                    const currentStreak = curWin > 0 ? curWin : (curLoss > 0 ? -curLoss : 0);
-                    return { currentStreak, longestWin, longestLoss };
-                });
-
-                // Max drawdown: largest peak-to-trough decline on the cumulative
-                // trading P&L curve (deposits excluded — this measures trading
-                // performance, not fund flows). % is relative to total deposited
-                // capital as a rough scale reference, not a precise NAV-based figure.
-                const maxDrawdownStat = computed(() => {
-                    const trades = chronologicalTrades.value;
-                    if (!trades.length) return null;
-                    let cum = 0, peak = -Infinity, peakDate = trades[0].date, maxDD = 0, ddPeakDate = null, ddTroughDate = null;
-                    trades.forEach(t => {
-                        cum += t.amount;
-                        if (cum > peak) { peak = cum; peakDate = t.date; }
-                        const dd = cum - peak;
-                        if (dd < maxDD) { maxDD = dd; ddPeakDate = peakDate; ddTroughDate = t.date; }
-                    });
-                    if (maxDD === 0) return null; // never had a decline from a peak
-                    const totalDeposits = records.value.filter(r => r.type === 'deposit').reduce((a, r) => a + r.amount, 0);
-                    const maxDDPct = totalDeposits > 0 ? (maxDD / totalDeposits * 100) : null;
-                    return { maxDD, maxDDPct, peakDate: ddPeakDate, troughDate: ddTroughDate };
                 });
 
                 const dailyMergedMap = computed(() => {
@@ -3137,7 +3164,6 @@
                     replayMode, replayTicker, toggleReplayMode, unlockReplayTicker, switchFormType,
                     currentPage, totalPages, paginatedRecords, selectedIds, isCurrentPageAllSelected, filterRecords,
                     addRecord, deleteSingle, deleteSelected, toggleSelectAllPage, prevMonth, nextMonth, formatCurrency, formatDayPnl, exportData, exportCSV, importData,
-                    streakStats, maxDrawdownStat,
                     setShortcutDate, setLastFriday, getCalendarDayBg, toggleViewMode, getYearViewWeeks, getYearViewMonthStats, drillDownToMonth,
                     toggleSort, renderSortIcon, selectedDayDetail, openDayDetail, closeDayDetail, dayDetailPnl,
                     noteEditorEl, noteSaveStatus, onNoteInput, applyNoteFormat, currentDayNoteContent,
